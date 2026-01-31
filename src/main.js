@@ -144,9 +144,11 @@ class HomelabStudio {
     const selectedIds = Array.from(this.canvas.selectedNodeIds);
     if (selectedIds.length === 0) return;
 
+    this.history.startBatch();
     selectedIds.forEach((id) => {
       this.removeNode(id);
     });
+    this.history.endBatch("batch");
 
     this.canvas.clearSelection();
   }
@@ -314,6 +316,7 @@ class HomelabStudio {
     const selectedIds = Array.from(this.canvas.selectedNodeIds);
     if (selectedIds.length === 0) return;
 
+    this.history.startBatch();
     const newIds = [];
     const idMap = new Map(); // oldId -> newId
 
@@ -340,6 +343,7 @@ class HomelabStudio {
         });
       }
     });
+    this.history.endBatch("batch");
 
     // Select all new nodes
     this.canvas.clearSelection();
@@ -401,29 +405,7 @@ class HomelabStudio {
     const action = this.history.undo();
     if (!action) return;
 
-    switch (action.type) {
-      case "add-node":
-        this.diagram.removeNode(action.nodeId);
-        document.querySelector(`[data-node-id="${action.nodeId}"]`)?.remove();
-        break;
-      case "remove-node":
-        this.diagram.importNode(action.data);
-        this.canvas.renderNode(action.data);
-        break;
-      case "add-connection":
-        this.diagram.removeConnection(action.connectionId);
-        document
-          .querySelector(`[data-connection-id="${action.connectionId}"]`)
-          ?.remove();
-        break;
-      case "remove-connection":
-        this.diagram.importConnection(action.data);
-        this.connections.renderConnection(action.data);
-        break;
-    }
-
-    this.updateNodeCount();
-    this.updateConnectionCount();
+    this.applyHistoryAction(action, "undo");
     this.ui.showToast("Undo", "info");
   }
 
@@ -432,30 +414,64 @@ class HomelabStudio {
     const action = this.history.redo();
     if (!action) return;
 
-    switch (action.type) {
-      case "add-node":
-        this.diagram.importNode(action.data);
-        this.canvas.renderNode(action.data);
-        break;
-      case "remove-node":
-        this.diagram.removeNode(action.nodeId);
-        document.querySelector(`[data-node-id="${action.nodeId}"]`)?.remove();
-        break;
-      case "add-connection":
-        this.diagram.importConnection(action.data);
-        this.connections.renderConnection(action.data);
-        break;
-      case "remove-connection":
-        this.diagram.removeConnection(action.connectionId);
-        document
-          .querySelector(`[data-connection-id="${action.connectionId}"]`)
-          ?.remove();
-        break;
+    this.applyHistoryAction(action, "redo");
+    this.ui.showToast("Redo", "info");
+  }
+
+  applyHistoryAction(action, mode) {
+    if (action.type === "batch") {
+      const actions =
+        mode === "undo" ? [...action.actions].reverse() : action.actions;
+      actions.forEach((a) => this.applyHistoryAction(a, mode));
+      return;
+    }
+
+    if (mode === "undo") {
+      switch (action.type) {
+        case "add-node":
+          this.diagram.removeNode(action.nodeId);
+          document.querySelector(`[data-node-id="${action.nodeId}"]`)?.remove();
+          break;
+        case "remove-node":
+          this.diagram.importNode(action.data);
+          this.canvas.renderNode(action.data);
+          break;
+        case "add-connection":
+          this.diagram.removeConnection(action.connectionId);
+          document
+            .querySelector(`[data-connection-id="${action.connectionId}"]`)
+            ?.remove();
+          break;
+        case "remove-connection":
+          this.diagram.importConnection(action.data);
+          this.connections.renderConnection(action.data);
+          break;
+      }
+    } else {
+      switch (action.type) {
+        case "add-node":
+          this.diagram.importNode(action.data);
+          this.canvas.renderNode(action.data);
+          break;
+        case "remove-node":
+          this.diagram.removeNode(action.nodeId);
+          document.querySelector(`[data-node-id="${action.nodeId}"]`)?.remove();
+          break;
+        case "add-connection":
+          this.diagram.importConnection(action.data);
+          this.connections.renderConnection(action.data);
+          break;
+        case "remove-connection":
+          this.diagram.removeConnection(action.connectionId);
+          document
+            .querySelector(`[data-connection-id="${action.connectionId}"]`)
+            ?.remove();
+          break;
+      }
     }
 
     this.updateNodeCount();
     this.updateConnectionCount();
-    this.ui.showToast("Redo", "info");
   }
 }
 

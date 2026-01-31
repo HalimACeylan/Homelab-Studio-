@@ -7,9 +7,15 @@ export class HistoryManager {
     this.undoStack = [];
     this.redoStack = [];
     this.maxSize = maxSize;
+    this.isBatching = false;
+    this.currentBatch = [];
   }
 
   push(action) {
+    if (this.isBatching) {
+      this.currentBatch.push(action);
+      return;
+    }
     this.undoStack.push(action);
     this.redoStack = []; // Clear redo stack on new action
 
@@ -19,6 +25,28 @@ export class HistoryManager {
     }
 
     this.updateButtons();
+  }
+
+  startBatch() {
+    this.isBatching = true;
+    this.currentBatch = [];
+  }
+
+  endBatch(batchType = "batch") {
+    this.isBatching = false;
+    if (this.currentBatch.length > 0) {
+      const batchAction = {
+        type: batchType,
+        actions: this.currentBatch,
+      };
+      this.undoStack.push(batchAction);
+      this.redoStack = [];
+      if (this.undoStack.length > this.maxSize) {
+        this.undoStack.shift();
+      }
+      this.updateButtons();
+    }
+    this.currentBatch = [];
   }
 
   undo() {
