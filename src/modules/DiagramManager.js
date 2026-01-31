@@ -261,7 +261,10 @@ export class DiagramManager {
       name,
       nodeIds: [...nodeIds], // Copy array
       type: "network",
-      color: "#58a6ff", // default color
+      // Random nicely selected colors
+      color: ["#ff4444", "#58a6ff", "#00c853", "#ffab00", "#aa00ff", "#ff4081"][
+        Math.floor(Math.random() * 6)
+      ],
     };
     this.groups.set(id, group);
     this.updateModified();

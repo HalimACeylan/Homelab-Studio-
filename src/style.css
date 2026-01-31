@@ -1112,6 +1112,17 @@ body {
   z-index: 1;
 }
 
+.groups-layer {
+  position: absolute;
+  inset: 0;
+  width: 10000px;
+  height: 10000px;
+  left: -5000px;
+  top: -5000px;
+  pointer-events: none;
+  z-index: 1; /* Same/lower than nodes (2) */
+}
+
 .nodes-layer {
   position: absolute;
   inset: 0;
@@ -1120,6 +1131,7 @@ body {
   left: -5000px;
   top: -5000px;
   z-index: 2;
+  pointer-events: none;
 }
 
 .canvas-overlay {
@@ -1173,6 +1185,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  pointer-events: auto;
 }
 
 .canvas-node:hover {
@@ -1629,26 +1642,28 @@ body {
 /* Groups */
 .canvas-group {
   position: absolute;
-  border: 2px dashed rgba(88, 166, 255, 0.4);
-  background: rgba(88, 166, 255, 0.03);
-  border-radius: var(--radius-lg);
-  pointer-events: none;
-  z-index: 10;
+  border: 2px solid var(--group-color, rgba(88, 166, 255, 0.8));
+  background: transparent;
+  border-radius: 4px;
+  pointer-events: auto; /* Allow clicking on the frame/label */
+  z-index: 5;
   transition: all 0.2s ease-out;
 }
 
 .group-label {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  border: 1px solid var(--border-secondary);
-  pointer-events: auto; /* Allow interactions with label if needed */
+  top: -24px;
+  left: 0;
+  background: transparent;
+  color: var(--group-color);
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  pointer-events: auto;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5); /* Readability on grid */
 }
 
 
@@ -2083,6 +2098,69 @@ textarea.property-input {
   border-color: var(--accent-blue);
 }
 
+/* Group Members List */
+.group-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: var(--spacing-sm);
+}
+
+.group-member-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.group-member-item:hover {
+  background: var(--bg-primary);
+  border-color: var(--border-secondary);
+}
+
+.member-name {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-remove-member {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  margin-left: var(--spacing-sm);
+}
+
+.btn-remove-member:hover {
+  background: var(--accent-red);
+  border-color: var(--accent-red);
+  color: white;
+}
+
+.btn-remove-member svg {
+  width: 14px;
+  height: 14px;
+}
+
+
 .property-color {
   width: 100%;
   height: 36px;
@@ -2210,6 +2288,46 @@ textarea.property-input {
   background: var(--border-primary);
   margin: var(--spacing-xs) 0;
 }
+
+/* Context Submenu */
+.context-submenu {
+  position: relative;
+}
+
+.submenu-arrow {
+  width: 12px !important;
+  height: 12px !important;
+  margin-left: auto;
+  opacity: 0.5;
+}
+
+.context-submenu:hover .submenu-arrow {
+  opacity: 1;
+}
+
+.context-submenu-panel {
+  position: fixed;
+  min-width: 160px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-xs);
+  z-index: 1001;
+  display: none;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.context-submenu-panel.visible {
+  display: block;
+  animation: contextMenuIn 150ms ease;
+}
+
+.context-submenu-panel .context-item {
+  font-size: 0.75rem;
+}
+
 
 /* ===================================
    Modal

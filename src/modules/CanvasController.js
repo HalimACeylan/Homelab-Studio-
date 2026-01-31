@@ -84,6 +84,15 @@ export class CanvasController {
     const nodeElement = e.target.closest(".canvas-node");
     const portElement = e.target.closest(".node-port");
     const connectionElement = e.target.closest(".connection");
+    const groupElement = e.target.closest(".canvas-group");
+
+    // Handle Group Click
+    if (groupElement && !nodeElement && !portElement && !connectionElement) {
+      e.stopPropagation();
+      const groupId = groupElement.dataset.groupId;
+      this.app.selectGroup(groupId);
+      return;
+    }
 
     // Handle port click for connecting
     if (portElement) {
@@ -310,13 +319,32 @@ export class CanvasController {
     this.draggedNode = element;
 
     const nodeId = element.dataset.nodeId;
-    const node = this.app.diagram.nodes.get(nodeId);
-
     const canvasPos = this.screenToCanvas(e.clientX, e.clientY);
-    this.dragOffset = {
-      x: canvasPos.x - node.x,
-      y: canvasPos.y - node.y,
-    };
+
+    // Check if we are dragging a selected node vs a non-selected one (which should become selected)
+    // The selection logic usually runs BEFORE startDragging in handleMouseDown.
+
+    this.dragOffsets = new Map();
+
+    if (this.selectedNodeIds.has(nodeId)) {
+      // Prepare offsets for ALL selected nodes relative to mouse click
+      this.selectedNodeIds.forEach((id) => {
+        const node = this.app.diagram.nodes.get(id);
+        if (node) {
+          this.dragOffsets.set(id, {
+            x: canvasPos.x - node.x,
+            y: canvasPos.y - node.y,
+          });
+        }
+      });
+    } else {
+      // Just for the single node (fallback)
+      const node = this.app.diagram.nodes.get(nodeId);
+      this.dragOffsets.set(nodeId, {
+        x: canvasPos.x - node.x,
+        y: canvasPos.y - node.y,
+      });
+    }
   }
 
   updateDragging(e) {
@@ -325,24 +353,18 @@ export class CanvasController {
     const nodeId = this.draggedNode.dataset.nodeId;
     const canvasPos = this.screenToCanvas(e.clientX, e.clientY);
 
-    let x = canvasPos.x - this.dragOffset.x;
-    let y = canvasPos.y - this.dragOffset.y;
-
-    if (this.snapEnabled) {
-      x = snapToGrid(x, this.gridSize);
-      y = snapToGrid(y, this.gridSize);
-    }
-
-    // If multi-selection, drag all selected nodes
+    // Use pre-calculated offsets for stable dragging
     if (this.selectedNodeIds.has(nodeId)) {
-      const dx = x - node.x;
-      const dy = y - node.y;
-
       this.selectedNodeIds.forEach((id) => {
-        const n = this.app.diagram.nodes.get(id);
-        if (n) {
-          const nx = n.x + dx;
-          const ny = n.y + dy;
+        const offset = this.dragOffsets.get(id);
+        if (offset) {
+          let nx = canvasPos.x - offset.x;
+          let ny = canvasPos.y - offset.y;
+
+          if (this.snapEnabled) {
+            nx = snapToGrid(nx, this.gridSize);
+            ny = snapToGrid(ny, this.gridSize);
+          }
 
           // Update DOM
           const el = document.querySelector(`[data-node-id="${id}"]`);
@@ -354,23 +376,18 @@ export class CanvasController {
           this.app.updateNodePosition(id, nx, ny);
         }
       });
-
-      // Update drag offset to avoid accumulation err? No, updateDragging is called continuously with absolute-ish mouse position.
-      // Wait, startDragging calculates offset based on single node.
-      // Here we calculated TARGET x/y for the PRIMARY dragged node.
-      // We calculate delta (dx, dy) and apply to others.
-      // This relies on model being updated synchronously in updateNodePosition? Yes.
-
-      // HOWEVER: updateNodePosition updates the node.x/y.
-      // The next mouse move will calculate x based on (mouse - offset).
-      // Mouse moves slightly. New x calculated.
-      // dx = newX - node.x. Since node.x was updated, dx is the step delta?
-      // NO. canvasPos is absolute. offset is constant.
-      // So x is the "desired" position of the dragged node.
-      // node.x is the "current" position (updated in previous frame).
-      // So dx is the difference. Correct.
     } else {
-      // Fallback for single node (should not happen if selection logic works)
+      // Fallback for single node (or if logic fails)
+      const offset = this.dragOffsets.get(nodeId);
+      // fallback if map empty?
+      let x = canvasPos.x - (offset ? offset.x : 0);
+      let y = canvasPos.y - (offset ? offset.y : 0);
+
+      if (this.snapEnabled) {
+        x = snapToGrid(x, this.gridSize);
+        y = snapToGrid(y, this.gridSize);
+      }
+
       this.draggedNode.style.left = `${x}px`;
       this.draggedNode.style.top = `${y}px`;
       this.app.updateNodePosition(nodeId, x, y);
@@ -832,7 +849,31 @@ export class CanvasController {
     groupEl.style.width = `${bounds.width}px`;
     groupEl.style.height = `${bounds.height}px`;
 
-    groupEl.querySelector(".group-label").textContent = group.name;
+    // Apply group color
+    const color = group.color || "#58a6ff";
+    groupEl.style.borderColor = color;
+    // Set background with opacity
+    // Since color is hex, we might need a utility to convert to rgba or just use low opacity on hex if supported or use CSS var
+    // Simple approach: Set border color and let CSS use opacity on background if possible, or set background explicitly
+    // Since we don't have hexToRgba handy here (unless in utils), let's try a simple CSS variable approach
+    groupEl.style.setProperty("--group-color", color);
+
+    // Update label
+    const label = groupEl.querySelector(".group-label");
+    label.textContent = group.name;
+    label.style.borderColor = color;
+    label.style.color = color;
+
+    // Update Member Nodes
+    group.nodeIds.forEach((nodeId) => {
+      const nodeEl = document.querySelector(`[data-node-id="${nodeId}"]`);
+      if (nodeEl) {
+        const titleEl = nodeEl.querySelector(".node-title");
+        if (titleEl) {
+          titleEl.style.color = color;
+        }
+      }
+    });
   }
 
   getGroupBounds(group) {
@@ -865,7 +906,7 @@ export class CanvasController {
         // Let's just use node.width/height for now.
 
         const h =
-          node.expanded && node.category === "hardware" ? 280 : node.height; // approximate
+          node.expanded && node.category === "hardware" ? 350 : node.height; // increased estimate
 
         minX = Math.min(minX, node.x);
         minY = Math.min(minY, node.y);
@@ -876,12 +917,12 @@ export class CanvasController {
 
     if (minX === Infinity) return null;
 
-    const padding = 20;
+    const padding = 30; // Increased padding to prevent overflow
     return {
       x: minX - padding,
-      y: minY - padding - 20, // Extra top padding for label
+      y: minY - padding,
       width: maxX - minX + padding * 2,
-      height: maxY - minY + padding * 2 + 20,
+      height: maxY - minY + padding * 2,
     };
   }
 

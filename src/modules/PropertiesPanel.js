@@ -417,4 +417,143 @@ export class PropertiesPanel {
       this.app.connections.updateConnection(connectionId);
     }
   }
+
+  showGroupProperties(group) {
+    // Build member nodes list
+    const membersList = group.nodeIds
+      .map((nodeId) => {
+        const node = this.app.diagram.nodes.get(nodeId);
+        const nodeName = node?.properties?.name || node?.type || "Unknown";
+        return `
+        <div class="group-member-item" data-node-id="${nodeId}">
+          <span class="member-name">${nodeName}</span>
+          <button class="btn-remove-member" data-node-id="${nodeId}" title="Remove from group">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      `;
+      })
+      .join("");
+
+    this.content.innerHTML = `
+      <div class="property-group">
+        <div class="property-group-title">Network Group</div>
+        <div class="property-row">
+          <label class="property-label" for="group-name">Name</label>
+          <input type="text" class="property-input" id="group-name" 
+                 value="${group.name || ""}" placeholder="Group Name...">
+        </div>
+        <div class="property-row">
+          <label class="property-label" for="group-color">Color</label>
+          <input type="color" class="property-input" id="group-color" 
+                 value="${
+                   group.color || "#58a6ff"
+                 }" style="height: 40px; cursor: pointer;">
+        </div>
+
+        <div class="property-divider"></div>
+
+        <div class="property-row">
+           <label class="property-label">Members (${
+             group.nodeIds.length
+           })</label>
+        </div>
+        <div class="group-members-list">
+          ${membersList}
+        </div>
+
+        <div class="property-divider"></div>
+        
+        <button class="btn btn-danger" id="btn-delete-group" style="width: 100%;">
+          Delete Group
+        </button>
+      </div>
+    `;
+
+    this.panel.classList.remove("collapsed");
+    this.setupGroupListeners(group.id);
+  }
+
+  setupGroupListeners(groupId) {
+    // Name
+    document.getElementById("group-name").addEventListener("input", (e) => {
+      this.app.diagram.updateGroup(groupId, { name: e.target.value });
+      this.app.canvas.renderGroup(this.app.diagram.groups.get(groupId));
+    });
+
+    // Color
+    document.getElementById("group-color").addEventListener("input", (e) => {
+      this.app.diagram.updateGroup(groupId, { color: e.target.value });
+      this.app.canvas.renderGroup(this.app.diagram.groups.get(groupId));
+    });
+
+    // Remove individual members
+    document.querySelectorAll(".btn-remove-member").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const nodeId = btn.dataset.nodeId;
+        const group = this.app.diagram.groups.get(groupId);
+
+        if (group) {
+          // Remove node from group
+          group.nodeIds = group.nodeIds.filter((id) => id !== nodeId);
+
+          // Reset node title color
+          const nodeEl = document.querySelector(`[data-node-id="${nodeId}"]`);
+          if (nodeEl) {
+            const titleEl = nodeEl.querySelector(".node-title");
+            if (titleEl) {
+              titleEl.style.color = "";
+            }
+          }
+
+          // If group is now empty, delete it
+          if (group.nodeIds.length === 0) {
+            this.app.diagram.removeGroup(groupId);
+            const el = document.querySelector(`[data-group-id="${groupId}"]`);
+            if (el) el.remove();
+            this.clear();
+            this.app.ui.showToast("Group deleted (no members left)", "success");
+          } else {
+            // Update group
+            this.app.diagram.updateModified();
+            this.app.canvas.renderGroup(group);
+            // Refresh properties panel
+            this.showGroupProperties(group);
+          }
+        }
+      });
+    });
+
+    // Delete
+    document
+      .getElementById("btn-delete-group")
+      .addEventListener("click", () => {
+        const group = this.app.diagram.groups.get(groupId);
+
+        // Reset all member node title colors
+        if (group) {
+          group.nodeIds.forEach((nodeId) => {
+            const nodeEl = document.querySelector(`[data-node-id="${nodeId}"]`);
+            if (nodeEl) {
+              const titleEl = nodeEl.querySelector(".node-title");
+              if (titleEl) {
+                titleEl.style.color = "";
+              }
+            }
+          });
+        }
+
+        this.app.diagram.removeGroup(groupId);
+        // Remove from DOM
+        const el = document.querySelector(`[data-group-id="${groupId}"]`);
+        if (el) el.remove();
+
+        this.clear();
+        this.app.ui.showToast("Group deleted", "success");
+      });
+  }
 }

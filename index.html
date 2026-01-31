@@ -589,7 +589,7 @@
           <span>Connect To...</span>
           <kbd>C</kbd>
         </button>
-        </button>
+        <div class="context-divider"></div>
         <button class="context-item" data-action="group-network">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
              <rect x="3" y="3" width="7" height="7"></rect>
@@ -597,9 +597,26 @@
              <rect x="14" y="14" width="7" height="7"></rect>
              <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
-          <span>Group as Network</span>
+          <span>Create New Group</span>
           <kbd>G</kbd>
         </button>
+        <button class="context-item context-submenu" data-action="add-to-group" id="add-to-group-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+             <rect x="3" y="3" width="7" height="7"></rect>
+             <rect x="14" y="3" width="7" height="7"></rect>
+             <rect x="14" y="14" width="7" height="7"></rect>
+             <rect x="3" y="14" width="7" height="7"></rect>
+             <path d="M12 8v8M8 12h8" stroke-width="1.5"></path>
+          </svg>
+          <span>Add to Group</span>
+          <svg class="submenu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <!-- Submenu for existing groups -->
+        <div class="context-submenu-panel" id="groups-submenu">
+          <!-- Will be populated dynamically -->
+        </div>
       </div>
 
       <!-- Modal Dialogs -->

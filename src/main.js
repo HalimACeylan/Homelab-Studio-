@@ -247,6 +247,18 @@ class HomelabStudio {
     }
   }
 
+  // Select group
+  selectGroup(groupId) {
+    this.canvas.clearSelection();
+    // No specific selection state for group in canvas controller yet (maybe visual highlight?)
+    // For now, just show properties
+
+    const group = this.diagram.groups.get(groupId);
+    if (group) {
+      this.properties.showGroupProperties(group);
+    }
+  }
+
   // Select connection
   selectConnection(connectionId) {
     this.canvas.clearSelection();

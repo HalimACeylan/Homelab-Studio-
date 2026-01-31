@@ -139,6 +139,23 @@ export class UIController {
       groupBtn.style.display = isMultiSelect ? "flex" : "none";
     }
 
+    // Show/hide "Add to Group" based on existing groups
+    const addToGroupBtn = this.contextMenu.querySelector(
+      '[data-action="add-to-group"]'
+    );
+    const hasGroups = this.app.diagram.groups.size > 0;
+    const hasSingleSelection = nodeId && !isMultiSelect;
+
+    if (addToGroupBtn) {
+      addToGroupBtn.style.display =
+        hasGroups && (hasSingleSelection || isMultiSelect) ? "flex" : "none";
+    }
+
+    // Populate groups submenu
+    if (hasGroups && (hasSingleSelection || isMultiSelect)) {
+      this.populateGroupsSubmenu();
+    }
+
     // Position menu
     this.contextMenu.style.left = `${x}px`;
     this.contextMenu.style.top = `${y}px`;
@@ -156,6 +173,10 @@ export class UIController {
 
   closeContextMenu() {
     this.contextMenu.classList.remove("visible");
+    const submenu = document.getElementById("groups-submenu");
+    if (submenu) {
+      submenu.classList.remove("visible");
+    }
     this.contextNodeId = null;
     this.contextConnectionId = null;
   }
@@ -469,5 +490,106 @@ export class UIController {
       console.error("Export failed:", error);
       this.showToast("Export failed", "error");
     }
+  }
+
+  populateGroupsSubmenu() {
+    const submenu = document.getElementById("groups-submenu");
+    if (!submenu) return;
+
+    // Clear existing items
+    submenu.innerHTML = "";
+
+    // Add each group as an option
+    this.app.diagram.groups.forEach((group) => {
+      const item = document.createElement("button");
+      item.className = "context-item";
+      item.dataset.groupId = group.id;
+
+      // Color indicator
+      const colorDot = document.createElement("span");
+      colorDot.style.cssText = `
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: ${group.color};
+        flex-shrink: 0;
+      `;
+
+      const label = document.createElement("span");
+      label.textContent = group.name || "Unnamed Group";
+
+      item.appendChild(colorDot);
+      item.appendChild(label);
+      submenu.appendChild(item);
+    });
+
+    this.setupGroupsSubmenuListeners();
+  }
+
+  setupGroupsSubmenuListeners() {
+    const addToGroupBtn = document.getElementById("add-to-group-btn");
+    const submenu = document.getElementById("groups-submenu");
+
+    if (!addToGroupBtn || !submenu) return;
+
+    // Show submenu on hover
+    addToGroupBtn.addEventListener("mouseenter", () => {
+      const btnRect = addToGroupBtn.getBoundingClientRect();
+      submenu.style.left = `${btnRect.right + 5}px`;
+      submenu.style.top = `${btnRect.top}px`;
+      submenu.classList.add("visible");
+    });
+
+    // Keep submenu open when hovering over it
+    submenu.addEventListener("mouseenter", () => {
+      submenu.classList.add("visible");
+    });
+
+    // Close submenu when mouse leaves both button and submenu
+    const closeSubmenu = () => {
+      setTimeout(() => {
+        if (!addToGroupBtn.matches(":hover") && !submenu.matches(":hover")) {
+          submenu.classList.remove("visible");
+        }
+      }, 100);
+    };
+
+    addToGroupBtn.addEventListener("mouseleave", closeSubmenu);
+    submenu.addEventListener("mouseleave", closeSubmenu);
+
+    // Handle group selection
+    submenu.querySelectorAll(".context-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        const groupId = item.dataset.groupId;
+        const group = this.app.diagram.groups.get(groupId);
+
+        if (group) {
+          // Get nodes to add
+          let nodesToAdd = [];
+          if (this.contextNodeId) {
+            nodesToAdd = [this.contextNodeId];
+          } else if (this.app.canvas.selectedNodeIds) {
+            nodesToAdd = Array.from(this.app.canvas.selectedNodeIds);
+          }
+
+          // Add nodes to group (avoid duplicates)
+          nodesToAdd.forEach((nodeId) => {
+            if (!group.nodeIds.includes(nodeId)) {
+              group.nodeIds.push(nodeId);
+            }
+          });
+
+          // Update group
+          this.app.diagram.updateModified();
+          this.app.canvas.renderGroup(group);
+
+          this.closeContextMenu();
+          this.showToast(
+            `Added ${nodesToAdd.length} node(s) to ${group.name}`,
+            "success"
+          );
+        }
+      });
+    });
   }
 }
