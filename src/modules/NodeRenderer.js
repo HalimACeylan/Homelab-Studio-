@@ -32,6 +32,10 @@ export class NodeRenderer {
         <rect x="3" y="3" width="18" height="18" rx="2"></rect>
         <path d="M9 9h6v6H9z"></path>
       </svg>`,
+      "custom-v-os": `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+        <path d="M8 8h8v8H8z"></path>
+      </svg>`,
 
       // Specific node icons
       server: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -366,7 +370,11 @@ export class NodeRenderer {
       <div class="os-env-group" data-os-env-id="${env.id}">
         <div class="os-env-header">
           <div class="os-env-icon">
-            ${this.icons[env.type?.toLowerCase()] || ""}
+            ${
+              this.icons[env.typeId] ||
+              this.icons[env.type?.toLowerCase()] ||
+              this.icons.os
+            }
           </div>
           <span class="os-env-name">${env.type}</span>
           <button class="node-item-delete" data-action="delete-os" data-os-id="${

@@ -161,6 +161,19 @@ export const OS_TYPES = {
     category: "v-os",
     description: "Open-source scale-out storage and virtualization solution",
   },
+  "custom-os": {
+    name: "Custom OS",
+    icon: "os",
+    color: "#f97316",
+    description: "Generic operating system",
+  },
+  "custom-v-os": {
+    name: "Custom Hypervisor",
+    icon: "os", // Use generic OS icon or specific v-os icon if available
+    color: "#8b5cf6",
+    category: "v-os",
+    description: "Generic hypervisor",
+  },
 };
 
 // Applications that can be added as subnodes to hardware
@@ -212,6 +225,12 @@ export const APPLICATION_TYPES = {
     icon: "grafana",
     color: "#f46800",
     description: "Monitoring dashboard",
+  },
+  "custom-service": {
+    name: "Custom Service",
+    icon: "service",
+    color: "#14b8a6",
+    description: "Generic application or service",
   },
 };
 
@@ -327,32 +346,6 @@ export const NODE_TYPES = {
     canHaveApps: false,
     properties: {
       ip: "",
-      description: "",
-    },
-  },
-  "custom-os": {
-    category: "os",
-    defaultName: "Custom OS",
-    defaultWidth: 120,
-    defaultHeight: 80,
-    icon: "os",
-    color: "#f97316",
-    canHaveApps: false,
-    properties: {
-      version: "",
-      description: "",
-    },
-  },
-  "custom-service": {
-    category: "service",
-    defaultName: "Custom Service",
-    defaultWidth: 120,
-    defaultHeight: 80,
-    icon: "service",
-    color: "#14b8a6",
-    canHaveApps: false,
-    properties: {
-      port: "",
       description: "",
     },
   },

@@ -909,6 +909,24 @@ body {
   border-radius: 3px;
 }
 
+.custom-v-os-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.custom-v-os-icon::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  background: #8b5cf6;
+  border-radius: 3px;
+}
+
+
 /* ===================================
    Operating System Palette Icons
    =================================== */
