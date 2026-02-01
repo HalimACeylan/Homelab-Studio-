@@ -444,21 +444,38 @@ export class UIController {
     this.showToast("Preparing export...", "info");
 
     try {
-      // Create a canvas element
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+      // Get the canvas wrapper
+      const wrapper = document.getElementById("canvas-wrapper");
+      if (!wrapper) {
+        this.showToast("Canvas not found", "error");
+        return;
+      }
 
-      // Get bounds of all nodes
+      // Calculate bounds including groups
       let minX = Infinity,
         minY = Infinity;
       let maxX = -Infinity,
         maxY = -Infinity;
 
+      // Check nodes
       this.app.diagram.nodes.forEach((node) => {
+        const h =
+          node.expanded && node.category === "hardware" ? 350 : node.height;
         minX = Math.min(minX, node.x);
         minY = Math.min(minY, node.y);
         maxX = Math.max(maxX, node.x + node.width);
-        maxY = Math.max(maxY, node.y + node.height);
+        maxY = Math.max(maxY, node.y + h);
+      });
+
+      // Check groups
+      this.app.diagram.groups.forEach((group) => {
+        const bounds = this.app.canvas.getGroupBounds(group);
+        if (bounds) {
+          minX = Math.min(minX, bounds.x);
+          minY = Math.min(minY, bounds.y);
+          maxX = Math.max(maxX, bounds.x + bounds.width);
+          maxY = Math.max(maxY, bounds.y + bounds.height);
+        }
       });
 
       if (minX === Infinity) {
@@ -470,71 +487,380 @@ export class UIController {
       const width = maxX - minX + padding * 2;
       const height = maxY - minY + padding * 2;
 
-      canvas.width = width;
-      canvas.height = height;
+      // Create an SVG element
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("width", width);
+      svg.setAttribute("height", height);
+      svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
 
-      // Fill background
-      ctx.fillStyle = getComputedStyle(document.documentElement)
-        .getPropertyValue("--bg-primary")
-        .trim();
-      ctx.fillRect(0, 0, width, height);
+      // Add background
+      const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      bg.setAttribute("width", width);
+      bg.setAttribute("height", height);
+      bg.setAttribute("fill", "#0d1117");
+      svg.appendChild(bg);
+
+      // Create defs for markers
+      const defs = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "defs"
+      );
+
+      // Add arrow markers for each connection type
+      const connectionTypes = ["ethernet", "wireless", "fiber", "usb"];
+      connectionTypes.forEach((type) => {
+        const marker = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "marker"
+        );
+        marker.setAttribute("id", `arrow-${type}-export`);
+        marker.setAttribute("markerWidth", "10");
+        marker.setAttribute("markerHeight", "10");
+        marker.setAttribute("refX", "9");
+        marker.setAttribute("refY", "3");
+        marker.setAttribute("orient", "auto");
+        marker.setAttribute("markerUnits", "strokeWidth");
+
+        const path = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "path"
+        );
+        path.setAttribute("d", "M0,0 L0,6 L9,3 z");
+
+        // Set color based on type
+        const colors = {
+          ethernet: "#58a6ff",
+          wireless: "#a371f7",
+          fiber: "#3fb950",
+          usb: "#f85149",
+        };
+        path.setAttribute("fill", colors[type] || "#58a6ff");
+        marker.appendChild(path);
+        defs.appendChild(marker);
+      });
+      svg.appendChild(defs);
+
+      // Draw groups
+      this.app.diagram.groups.forEach((group) => {
+        const bounds = this.app.canvas.getGroupBounds(group);
+        if (bounds) {
+          const x = bounds.x - minX + padding;
+          const y = bounds.y - minY + padding;
+
+          // Group rectangle
+          const rect = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "rect"
+          );
+          rect.setAttribute("x", x);
+          rect.setAttribute("y", y);
+          rect.setAttribute("width", bounds.width);
+          rect.setAttribute("height", bounds.height);
+          rect.setAttribute("fill", "none");
+          rect.setAttribute("stroke", group.color || "#58a6ff");
+          rect.setAttribute("stroke-width", "2");
+          rect.setAttribute("stroke-dasharray", "5,5");
+          rect.setAttribute("rx", "8");
+          svg.appendChild(rect);
+
+          // Group label
+          const text = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          text.setAttribute("x", x + 10);
+          text.setAttribute("y", y - 5);
+          text.setAttribute("fill", group.color || "#58a6ff");
+          text.setAttribute("font-size", "12");
+          text.setAttribute("font-weight", "600");
+          text.setAttribute("font-family", "Inter, sans-serif");
+          text.textContent = group.name;
+          svg.appendChild(text);
+        }
+      });
 
       // Draw connections
-      ctx.strokeStyle = "#30363d";
-      ctx.lineWidth = 2;
-
       this.app.diagram.connections.forEach((connection) => {
         const endpoints = this.app.diagram.getConnectionEndpoints(
           connection.id
         );
         if (endpoints) {
-          ctx.beginPath();
-          ctx.moveTo(
-            endpoints.source.x - minX + padding,
-            endpoints.source.y - minY + padding
+          const path = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "path"
           );
-          ctx.lineTo(
-            endpoints.target.x - minX + padding,
-            endpoints.target.y - minY + padding
+
+          const sx = endpoints.source.x - minX + padding;
+          const sy = endpoints.source.y - minY + padding;
+          const tx = endpoints.target.x - minX + padding;
+          const ty = endpoints.target.y - minY + padding;
+
+          // Calculate bezier curve
+          const dx = tx - sx;
+          const dy = ty - sy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const offset = Math.min(dist / 2, 100);
+
+          const pathData = `M ${sx} ${sy} C ${sx + offset} ${sy}, ${
+            tx - offset
+          } ${ty}, ${tx} ${ty}`;
+          path.setAttribute("d", pathData);
+          path.setAttribute("fill", "none");
+          path.setAttribute("stroke-width", "2");
+          path.setAttribute(
+            "marker-end",
+            `url(#arrow-${connection.type}-export)`
           );
-          ctx.stroke();
+
+          // Set stroke style based on type
+          const styles = {
+            ethernet: { stroke: "#58a6ff", dasharray: "" },
+            wireless: { stroke: "#a371f7", dasharray: "5,5" },
+            fiber: { stroke: "#3fb950", dasharray: "" },
+            usb: { stroke: "#f85149", dasharray: "" },
+          };
+          const style = styles[connection.type] || styles.ethernet;
+          path.setAttribute("stroke", style.stroke);
+          if (style.dasharray) {
+            path.setAttribute("stroke-dasharray", style.dasharray);
+          }
+
+          svg.appendChild(path);
         }
       });
 
-      // Draw nodes as simple rectangles
+      // Draw nodes
       this.app.diagram.nodes.forEach((node) => {
         const x = node.x - minX + padding;
         const y = node.y - minY + padding;
+        const h =
+          node.expanded && node.category === "hardware" ? 350 : node.height;
+
+        // Find the group this node belongs to
+        let nodeColor = "#58a6ff";
+        this.app.diagram.groups.forEach((group) => {
+          if (group.nodeIds.includes(node.id)) {
+            nodeColor = group.color || "#58a6ff";
+          }
+        });
 
         // Node background
-        ctx.fillStyle = "#161b22";
-        ctx.strokeStyle = "#30363d";
-        ctx.lineWidth = 2;
-
-        ctx.beginPath();
-        ctx.roundRect(x, y, node.width, node.height, 12);
-        ctx.fill();
-        ctx.stroke();
-
-        // Node name
-        ctx.fillStyle = "#f0f6fc";
-        ctx.font = "14px Inter, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(
-          node.properties.name || node.type,
-          x + node.width / 2,
-          y + 35
+        const rect = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "rect"
         );
+        rect.setAttribute("x", x);
+        rect.setAttribute("y", y);
+        rect.setAttribute("width", node.width);
+        rect.setAttribute("height", h);
+        rect.setAttribute("fill", "#161b22");
+        rect.setAttribute("stroke", "#30363d");
+        rect.setAttribute("stroke-width", "2");
+        rect.setAttribute("rx", "12");
+        svg.appendChild(rect);
+
+        // Add simple icon representation
+        const iconY = y + 35;
+        const iconX = x + 20;
+        const iconSize = 24;
+
+        // Draw a simple icon based on node type
+        const iconGroup = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "g"
+        );
+
+        if (node.type === "server" || node.category === "hardware") {
+          // Server icon - simple rectangle with lines
+          const serverRect = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "rect"
+          );
+          serverRect.setAttribute("x", iconX);
+          serverRect.setAttribute("y", iconY - iconSize / 2);
+          serverRect.setAttribute("width", iconSize);
+          serverRect.setAttribute("height", iconSize);
+          serverRect.setAttribute("fill", "none");
+          serverRect.setAttribute("stroke", nodeColor);
+          serverRect.setAttribute("stroke-width", "2");
+          serverRect.setAttribute("rx", "3");
+          iconGroup.appendChild(serverRect);
+
+          // Add horizontal lines
+          for (let i = 1; i <= 2; i++) {
+            const line = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "line"
+            );
+            line.setAttribute("x1", iconX + 4);
+            line.setAttribute("y1", iconY - iconSize / 2 + (i * iconSize) / 3);
+            line.setAttribute("x2", iconX + iconSize - 4);
+            line.setAttribute("y2", iconY - iconSize / 2 + (i * iconSize) / 3);
+            line.setAttribute("stroke", nodeColor);
+            line.setAttribute("stroke-width", "2");
+            iconGroup.appendChild(line);
+          }
+        } else if (node.type === "router" || node.type === "switch") {
+          // Router/Switch icon - diamond shape
+          const points = `${iconX + iconSize / 2},${iconY - iconSize / 2} ${
+            iconX + iconSize
+          },${iconY} ${iconX + iconSize / 2},${
+            iconY + iconSize / 2
+          } ${iconX},${iconY}`;
+          const diamond = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "polygon"
+          );
+          diamond.setAttribute("points", points);
+          diamond.setAttribute("fill", "none");
+          diamond.setAttribute("stroke", nodeColor);
+          diamond.setAttribute("stroke-width", "2");
+          iconGroup.appendChild(diamond);
+        } else {
+          // Default icon - circle
+          const circle = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "circle"
+          );
+          circle.setAttribute("cx", iconX + iconSize / 2);
+          circle.setAttribute("cy", iconY);
+          circle.setAttribute("r", iconSize / 2);
+          circle.setAttribute("fill", "none");
+          circle.setAttribute("stroke", nodeColor);
+          circle.setAttribute("stroke-width", "2");
+          iconGroup.appendChild(circle);
+        }
+
+        svg.appendChild(iconGroup);
+
+        // Node title (adjusted position to make room for icon)
+        const title = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "text"
+        );
+        title.setAttribute("x", x + 55);
+        title.setAttribute("y", y + 40);
+        title.setAttribute("fill", nodeColor);
+        title.setAttribute("font-size", "16");
+        title.setAttribute("font-weight", "600");
+        title.setAttribute("font-family", "Inter, sans-serif");
+        title.setAttribute("text-anchor", "start");
+        title.textContent = node.properties.name || node.type;
+        svg.appendChild(title);
+
+        // Node type
+        const typeText = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "text"
+        );
+        typeText.setAttribute("x", x + 55);
+        typeText.setAttribute("y", y + 58);
+        typeText.setAttribute("fill", "#8b949e");
+        typeText.setAttribute("font-size", "11");
+        typeText.setAttribute("font-family", "Inter, sans-serif");
+        typeText.setAttribute("text-anchor", "start");
+        typeText.textContent = node.type;
+        svg.appendChild(typeText);
+
+        // If expanded hardware node, show details
+        if (node.expanded && node.category === "hardware") {
+          let yOffset = 80;
+
+          // CPU
+          const cpuLabel = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          cpuLabel.setAttribute("x", x + 20);
+          cpuLabel.setAttribute("y", y + yOffset);
+          cpuLabel.setAttribute("fill", "#8b949e");
+          cpuLabel.setAttribute("font-size", "11");
+          cpuLabel.setAttribute("font-family", "Inter, sans-serif");
+          cpuLabel.textContent = "CPU";
+          svg.appendChild(cpuLabel);
+
+          const cpuValue = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          cpuValue.setAttribute("x", x + node.width - 20);
+          cpuValue.setAttribute("y", y + yOffset);
+          cpuValue.setAttribute("fill", "#c9d1d9");
+          cpuValue.setAttribute("font-size", "11");
+          cpuValue.setAttribute("font-family", "Inter, sans-serif");
+          cpuValue.setAttribute("text-anchor", "end");
+          cpuValue.textContent = node.properties.cpu || "0%";
+          svg.appendChild(cpuValue);
+
+          yOffset += 30;
+
+          // RAM
+          const ramLabel = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          ramLabel.setAttribute("x", x + 20);
+          ramLabel.setAttribute("y", y + yOffset);
+          ramLabel.setAttribute("fill", "#8b949e");
+          ramLabel.setAttribute("font-size", "11");
+          ramLabel.setAttribute("font-family", "Inter, sans-serif");
+          ramLabel.textContent = "RAM";
+          svg.appendChild(ramLabel);
+
+          const ramValue = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          ramValue.setAttribute("x", x + node.width - 20);
+          ramValue.setAttribute("y", y + yOffset);
+          ramValue.setAttribute("fill", "#c9d1d9");
+          ramValue.setAttribute("font-size", "11");
+          ramValue.setAttribute("font-family", "Inter, sans-serif");
+          ramValue.setAttribute("text-anchor", "end");
+          ramValue.textContent = node.properties.ram || "0%";
+          svg.appendChild(ramValue);
+        }
+
+        // Status indicator
+        const statusCircle = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "circle"
+        );
+        statusCircle.setAttribute("cx", x + node.width - 15);
+        statusCircle.setAttribute("cy", y + 15);
+        statusCircle.setAttribute("r", "5");
+        statusCircle.setAttribute(
+          "fill",
+          node.properties.status === "online" ? "#3fb950" : "#6e7681"
+        );
+        svg.appendChild(statusCircle);
       });
 
-      // Export
-      const dataUrl = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.download = `homelab-diagram-${Date.now()}.png`;
-      link.href = dataUrl;
-      link.click();
+      // Convert SVG to PNG
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], {
+        type: "image/svg+xml;charset=utf-8",
+      });
+      const url = URL.createObjectURL(svgBlob);
 
-      this.showToast("Diagram exported as PNG", "success");
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+
+        canvas.toBlob((blob) => {
+          const link = document.createElement("a");
+          link.download = `homelab-diagram-${Date.now()}.png`;
+          link.href = URL.createObjectURL(blob);
+          link.click();
+          URL.revokeObjectURL(url);
+          this.showToast("Diagram exported as PNG", "success");
+        });
+      };
+      img.src = url;
     } catch (error) {
       console.error("Export failed:", error);
       this.showToast("Export failed", "error");
