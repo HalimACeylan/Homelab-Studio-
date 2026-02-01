@@ -35,13 +35,23 @@ export class KeyboardController {
           ids.forEach((id) => this.app.removeNode(id));
         }
         this.app.ui.showToast(`${count} node(s) deleted`, "success");
+      } else if (
+        this.app.canvas.selectedConnectionIds &&
+        this.app.canvas.selectedConnectionIds.size > 0
+      ) {
+        e.preventDefault();
+        const count = this.app.canvas.selectedConnectionIds.size;
+        this.app.removeSelectedConnections();
+        this.app.ui.showToast(`${count} connection(s) deleted`, "success");
       } else if (this.app.canvas.selectedNodeId) {
         e.preventDefault();
-        this.app.removeNode(this.app.canvas.selectedNodeId);
+        const id = this.app.canvas.selectedNodeId;
+        this.app.removeNode(id);
         this.app.ui.showToast("Node deleted", "success");
       } else if (this.app.canvas.selectedConnectionId) {
         e.preventDefault();
-        this.app.removeConnection(this.app.canvas.selectedConnectionId);
+        const id = this.app.canvas.selectedConnectionId;
+        this.app.removeConnection(id);
         this.app.ui.showToast("Connection deleted", "success");
       }
     }
@@ -90,7 +100,7 @@ export class KeyboardController {
     // Select All (Cmd/Ctrl + A)
     if (cmdKey && e.key === "a") {
       e.preventDefault();
-      this.app.selectAllNodes();
+      this.app.selectAll();
     }
 
     // New (Cmd/Ctrl + N)

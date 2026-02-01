@@ -29,9 +29,8 @@ export class CanvasController {
     this.isConnecting = false;
     this.isSelecting = false;
 
-    this.isSelecting = false;
-
     this.selectedNodeIds = new Set();
+    this.selectedConnectionIds = new Set();
     this.selectedNodeId = null;
     this.selectedConnectionId = null;
     this.draggedNode = null;
@@ -180,14 +179,17 @@ export class CanvasController {
     if (connectionElement) {
       e.stopPropagation();
       const connectionId = connectionElement.dataset.connectionId;
+      const isMultiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
 
       if (e.button === 2) {
-        this.app.selectConnection(connectionId);
+        if (!this.selectedConnectionIds.has(connectionId)) {
+          this.app.selectConnection(connectionId, isMultiSelect);
+        }
         this.app.ui.showContextMenu(e.clientX, e.clientY, null, connectionId);
         return;
       }
 
-      this.app.selectConnection(connectionId);
+      this.app.selectConnection(connectionId, isMultiSelect);
       return;
     }
 
@@ -558,6 +560,13 @@ export class CanvasController {
       });
       this.selectedNodeIds.clear();
     }
+    if (this.selectedConnectionIds) {
+      this.selectedConnectionIds.forEach((id) => {
+        const element = document.querySelector(`[data-connection-id="${id}"]`);
+        if (element) element.classList.remove("selected");
+      });
+      this.selectedConnectionIds.clear();
+    }
     this.app.properties.clear();
   }
 
@@ -652,7 +661,20 @@ export class CanvasController {
         // OR NewSelection = InRect (if no modifier).
       }
     });
-  }
+
+    // Also select connections within the rect
+    const connections = this.app.diagram.connections;
+    connections.forEach((conn) => {
+      const endpoints = this.app.diagram.getConnectionEndpoints(conn.id);
+      if (endpoints) {
+        const midX = (endpoints.source.x + endpoints.target.x) / 2;
+        const midY = (endpoints.source.y + endpoints.target.y) / 2;
+        if (midX > cX && midX < cX + cW && midY > cY && midY < cY + cH) {
+          this.app.selectConnection(conn.id, true);
+        }
+      }
+    });
+}
 
   finishSelection() {
     this.isSelecting = false;

@@ -1364,28 +1364,33 @@ body {
 
 .connections-layer {
   position: absolute;
-  inset: 0;
-  width: 10000px;
-  height: 10000px;
+  top: -20000px;
+  left: -20000px;
+  width: 40000px;
+  height: 40000px;
   pointer-events: none;
-  z-index: 1;
+  z-index: 2;
 }
 
 .groups-layer {
   position: absolute;
-  inset: 0;
-  width: 10000px;
-  height: 10000px;
+  top: -20000px;
+  left: -20000px;
+  width: 40000px;
+  height: 40000px;
+  transform: translate(20000px, 20000px);
   pointer-events: none;
   z-index: 1; /* Same/lower than nodes (2) */
 }
 
 .nodes-layer {
   position: absolute;
-  inset: 0;
-  width: 10000px;
-  height: 10000px;
-  z-index: 2;
+  top: -20000px;
+  left: -20000px;
+  width: 40000px;
+  height: 40000px;
+  transform: translate(20000px, 20000px);
+  z-index: 3;
   pointer-events: none;
 }
 

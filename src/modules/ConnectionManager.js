@@ -54,35 +54,53 @@ export class ConnectionManager {
     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
     group.dataset.connectionId = connection.id;
 
-    // Create path
+    // Create invisible hit area for easier clicking
+    const hitArea = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "path"
+    );
+    hitArea.setAttribute("fill", "none");
+    hitArea.setAttribute("stroke", "transparent");
+    hitArea.setAttribute("stroke-width", "20");
+    hitArea.setAttribute("pointer-events", "stroke");
+    hitArea.style.cursor = "pointer";
+    hitArea.dataset.connectionId = connection.id;
+
+    // Create visible path
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.classList.add("connection", connection.type);
     path.dataset.connectionId = connection.id;
 
     // Calculate bezier curve
     const pathData = this.calculatePath(endpoints.source, endpoints.target);
+    hitArea.setAttribute("d", pathData);
     path.setAttribute("d", pathData);
     path.setAttribute("marker-end", `url(#arrow-${connection.type})`);
 
-    // Add click handler
-    path.addEventListener("click", (e) => {
+    // Add click handler to both paths
+    const clickHandler = (e) => {
       e.stopPropagation();
-      this.app.selectConnection(connection.id);
-    });
+      this.app.selectConnection(
+        connection.id,
+        e.shiftKey || e.ctrlKey || e.metaKey
+      );
+    };
 
-    path.addEventListener("contextmenu", (e) => {
+    const contextHandler = (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.app.selectConnection(connection.id);
       this.app.ui.showContextMenu(e.clientX, e.clientY, null, connection.id);
-    });
+    };
 
+    hitArea.addEventListener("click", clickHandler);
+    hitArea.addEventListener("contextmenu", contextHandler);
+    path.addEventListener("click", clickHandler);
+    path.addEventListener("contextmenu", contextHandler);
+
+    // Append hit area first (behind visible path)
+    group.appendChild(hitArea);
     group.appendChild(path);
-
-    // Add label (show type if no custom label)
-    const labelText = connection.properties.label || connectionType.name;
-    const label = this.createLabel(endpoints, labelText);
-    group.appendChild(label);
 
     this.connectionsLayer.appendChild(group);
   }
@@ -151,23 +169,10 @@ export class ConnectionManager {
     );
     if (!group) return;
 
-    const path = group.querySelector("path");
-    if (path) {
+    const paths = group.querySelectorAll("path");
+    if (paths.length > 0) {
       const pathData = this.calculatePath(endpoints.source, endpoints.target);
-      path.setAttribute("d", pathData);
-    }
-
-    // Update label position and text
-    const label = group.querySelector("text");
-    if (label) {
-      const midX = (endpoints.source.x + endpoints.target.x) / 2;
-      const midY = (endpoints.source.y + endpoints.target.y) / 2;
-      label.setAttribute("x", midX);
-      label.setAttribute("y", midY);
-
-      const connectionType =
-        CONNECTION_TYPES[connection.type] || CONNECTION_TYPES.ethernet;
-      label.textContent = connection.properties.label || connectionType.name;
+      paths.forEach((p) => p.setAttribute("d", pathData));
     }
   }
 

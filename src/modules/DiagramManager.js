@@ -219,9 +219,6 @@ export class DiagramManager {
       targetId,
       type: properties.type || "ethernet",
       properties: {
-        label: properties.label || "",
-        bandwidth: properties.bandwidth || "",
-        latency: properties.latency || "",
         ...properties,
       },
     };

@@ -331,27 +331,6 @@ export class PropertiesPanel {
               .join("")}
           </select>
         </div>
-        <div class="property-row">
-          <label class="property-label" for="conn-label">Label</label>
-          <input type="text" class="property-input" id="conn-label" 
-                 value="${
-                   connection.properties.label || ""
-                 }" placeholder="e.g., 1Gbps">
-        </div>
-        <div class="property-row">
-          <label class="property-label" for="conn-bandwidth">Bandwidth</label>
-          <input type="text" class="property-input" id="conn-bandwidth" 
-                 value="${
-                   connection.properties.bandwidth || ""
-                 }" placeholder="e.g., 1 Gbps">
-        </div>
-        <div class="property-row">
-          <label class="property-label" for="conn-latency">Latency</label>
-          <input type="text" class="property-input" id="conn-latency" 
-                 value="${
-                   connection.properties.latency || ""
-                 }" placeholder="e.g., <1ms">
-        </div>
       </div>
 
       <div class="property-group">
@@ -372,27 +351,6 @@ export class PropertiesPanel {
       const type = e.target.value;
       this.app.diagram.updateConnection(connectionId, { type });
       this.app.connections.updateConnectionStyle(connectionId, type);
-    });
-
-    // Label
-    document.getElementById("conn-label")?.addEventListener("input", (e) => {
-      this.updateConnectionProperty(connectionId, "label", e.target.value);
-    });
-
-    // Bandwidth
-    document
-      .getElementById("conn-bandwidth")
-      ?.addEventListener("input", (e) => {
-        this.updateConnectionProperty(
-          connectionId,
-          "bandwidth",
-          e.target.value
-        );
-      });
-
-    // Latency
-    document.getElementById("conn-latency")?.addEventListener("input", (e) => {
-      this.updateConnectionProperty(connectionId, "latency", e.target.value);
     });
 
     // Delete

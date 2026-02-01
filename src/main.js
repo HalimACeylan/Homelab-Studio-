@@ -212,6 +212,19 @@ class HomelabStudio {
     this.updateConnectionCount();
   }
 
+  removeSelectedConnections() {
+    const selectedIds = Array.from(this.canvas.selectedConnectionIds);
+    if (selectedIds.length === 0) return;
+
+    this.history.startBatch();
+    selectedIds.forEach((id) => {
+      this.removeConnection(id);
+    });
+    this.history.endBatch("batch");
+
+    this.canvas.clearSelection();
+  }
+
   // Update node position
   updateNodePosition(nodeId, x, y) {
     this.diagram.updateNode(nodeId, { x, y });
@@ -260,12 +273,16 @@ class HomelabStudio {
     }
   }
 
-  selectAllNodes() {
+  selectAll() {
     this.canvas.clearSelection();
     this.diagram.nodes.forEach((node) => {
       this.selectNode(node.id, true);
     });
-    this.ui.showToast(`Selected all ${this.diagram.nodes.size} nodes`, "info");
+    this.diagram.connections.forEach((conn) => {
+      this.selectConnection(conn.id, true);
+    });
+    const total = this.diagram.nodes.size + this.diagram.connections.size;
+    this.ui.showToast(`Selected all ${total} elements`, "info");
   }
 
   // Select group
@@ -281,8 +298,16 @@ class HomelabStudio {
   }
 
   // Select connection
-  selectConnection(connectionId) {
-    this.canvas.clearSelection();
+  selectConnection(connectionId, addToSelection = false) {
+    if (!addToSelection) {
+      this.canvas.clearSelection();
+    }
+
+    if (this.canvas.selectedConnectionIds) {
+      this.canvas.selectedConnectionIds.add(connectionId);
+    } else {
+      this.canvas.selectedConnectionIds = new Set([connectionId]);
+    }
     this.canvas.selectedConnectionId = connectionId;
 
     const element = document.querySelector(

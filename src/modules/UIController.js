@@ -218,6 +218,8 @@ export class UIController {
       case "delete":
         if (this.app.canvas.selectedNodeIds.size > 0) {
           this.app.removeSelectedNodes();
+        } else if (this.app.canvas.selectedConnectionIds.size > 0) {
+          this.app.removeSelectedConnections();
         } else if (this.contextNodeId) {
           this.app.removeNode(this.contextNodeId);
           this.showToast("Node deleted", "success");
