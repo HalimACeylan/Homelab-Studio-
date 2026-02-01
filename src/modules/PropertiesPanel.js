@@ -377,8 +377,9 @@ export class PropertiesPanel {
   }
 
   showGroupProperties(group) {
-    // Build member nodes list
+    // Build member nodes list (filter out any invalid node IDs)
     const membersList = group.nodeIds
+      .filter((nodeId) => this.app.diagram.nodes.has(nodeId))
       .map((nodeId) => {
         const node = this.app.diagram.nodes.get(nodeId);
         const nodeName = node?.properties?.name || node?.type || "Unknown";

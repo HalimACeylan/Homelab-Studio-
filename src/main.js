@@ -123,6 +123,39 @@ class HomelabStudio {
       this.removeConnection(id);
     });
 
+    // Remove node from any groups
+    const groupsToUpdate = new Set();
+    const groupsToDelete = [];
+
+    this.diagram.groups.forEach((group, groupId) => {
+      if (group.nodeIds.includes(nodeId)) {
+        group.nodeIds = group.nodeIds.filter((id) => id !== nodeId);
+
+        if (group.nodeIds.length === 0) {
+          // Mark empty group for deletion
+          groupsToDelete.push(groupId);
+        } else {
+          // Mark group for update
+          groupsToUpdate.add(groupId);
+        }
+      }
+    });
+
+    // Delete empty groups
+    groupsToDelete.forEach((groupId) => {
+      this.diagram.removeGroup(groupId);
+      const groupEl = document.querySelector(`[data-group-id="${groupId}"]`);
+      if (groupEl) groupEl.remove();
+    });
+
+    // Update remaining groups
+    groupsToUpdate.forEach((groupId) => {
+      const group = this.diagram.groups.get(groupId);
+      if (group) {
+        this.canvas.renderGroup(group);
+      }
+    });
+
     // Remove node from diagram
     this.diagram.removeNode(nodeId);
 

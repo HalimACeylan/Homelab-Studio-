@@ -299,12 +299,29 @@ export class UIController {
         groupsToUpdate.forEach((groupId) => {
           const group = this.app.diagram.groups.get(groupId);
           if (group && group.nodeIds.length > 0) {
+            // Clean up any invalid node IDs
+            group.nodeIds = group.nodeIds.filter((nodeId) =>
+              this.app.diagram.nodes.has(nodeId)
+            );
             this.app.canvas.renderGroup(group);
           }
         });
 
         if (removedCount > 0) {
           this.app.diagram.updateModified();
+
+          // Refresh properties panel if showing a group
+          const currentGroupId = this.app.canvas.selectedGroupId;
+          if (currentGroupId && groupsToUpdate.has(currentGroupId)) {
+            const group = this.app.diagram.groups.get(currentGroupId);
+            if (group) {
+              this.app.properties.showGroupProperties(group);
+            } else {
+              // Group was deleted, clear properties
+              this.app.properties.clear();
+            }
+          }
+
           this.showToast(
             `Removed ${removedCount} node(s) from group(s)`,
             "success"
