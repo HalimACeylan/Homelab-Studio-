@@ -410,15 +410,14 @@ class HomelabStudio {
   importDiagram(data) {
     this.clearDiagram();
 
-    // Import groups first
+    // Import groups into data model first (but don't render yet)
     if (data.groups) {
       data.groups.forEach((group) => {
-        const imported = this.diagram.importGroup(group);
-        this.canvas.renderGroup(imported);
+        this.diagram.importGroup(group);
       });
     }
 
-    // Then import nodes
+    // Then import and render nodes
     if (data.nodes) {
       data.nodes.forEach((node) => {
         const imported = this.diagram.importNode(node);
@@ -426,11 +425,18 @@ class HomelabStudio {
       });
     }
 
-    // Finally import connections
+    // Then import and render connections
     if (data.connections) {
       data.connections.forEach((conn) => {
         const imported = this.diagram.importConnection(conn);
         this.connections.renderConnection(imported);
+      });
+    }
+
+    // Finally render groups (after nodes are in DOM)
+    if (data.groups) {
+      data.groups.forEach((group) => {
+        this.canvas.renderGroup(this.diagram.groups.get(group.id));
       });
     }
 
