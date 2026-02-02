@@ -157,6 +157,9 @@ export class ConnectionManager {
     const bandwidth = connection.properties.bandwidth || "1000";
     const bandwidthUnit = connection.properties.bandwidthUnit || "Mbit";
     const connectionName = connection.properties.name;
+    const connectionType =
+      CONNECTION_TYPES[connection.type] || CONNECTION_TYPES.ethernet;
+    const connectionTypeName = connectionType.name;
 
     // Create a group for the label
     const labelGroup = document.createElementNS(
@@ -184,7 +187,7 @@ export class ConnectionManager {
     labelText.setAttribute("dominant-baseline", "middle");
 
     // Create tspan elements for multi-line label
-    let yOffset = -10;
+    let yOffset = connectionName ? -17 : -10;
 
     // Connection name (if exists)
     if (connectionName) {
@@ -206,10 +209,23 @@ export class ConnectionManager {
       "tspan"
     );
     nodesTspan.setAttribute("x", midX);
-    nodesTspan.setAttribute("dy", connectionName ? yOffset : yOffset);
+    nodesTspan.setAttribute("dy", yOffset);
     nodesTspan.textContent = `${sourceName} → ${targetName}`;
     nodesTspan.style.fontSize = "11px";
     labelText.appendChild(nodesTspan);
+
+    // Connection Type
+    const typeTspan = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "tspan"
+    );
+    typeTspan.setAttribute("x", midX);
+    typeTspan.setAttribute("dy", 14);
+    typeTspan.textContent = connectionTypeName;
+    typeTspan.style.fontSize = "10px";
+    typeTspan.style.opacity = "0.7";
+    typeTspan.style.fontStyle = "italic";
+    labelText.appendChild(typeTspan);
 
     // Bandwidth
     const bandwidthTspan = document.createElementNS(
@@ -238,10 +254,10 @@ export class ConnectionManager {
         labelGroup.insertBefore(bgRect, labelText);
       } catch (e) {
         // Fallback if getBBox fails
-        bgRect.setAttribute("x", midX - 50);
-        bgRect.setAttribute("y", midY - 20);
-        bgRect.setAttribute("width", 100);
-        bgRect.setAttribute("height", 40);
+        bgRect.setAttribute("x", midX - 60);
+        bgRect.setAttribute("y", midY - 30);
+        bgRect.setAttribute("width", 120);
+        bgRect.setAttribute("height", 60);
         bgRect.setAttribute("rx", "3");
         labelGroup.insertBefore(bgRect, labelText);
       }
@@ -311,15 +327,25 @@ export class ConnectionManager {
     if (!connection) return;
 
     const connectionType = CONNECTION_TYPES[type] || CONNECTION_TYPES.ethernet;
-    const path = this.connectionsLayer.querySelector(
-      `path[data-connection-id="${connectionId}"]`
+
+    // Find the connection group first, then the visible path inside it
+    const group = this.connectionsLayer.querySelector(
+      `g.connection-group[data-connection-id="${connectionId}"]`
     );
 
-    if (path) {
+    if (!group) return;
+
+    // Get the visible path (not the hit area)
+    const paths = group.querySelectorAll("path.connection");
+
+    paths.forEach((path) => {
       // Remove old type class
       path.classList.remove(...Object.keys(CONNECTION_TYPES));
       path.classList.add(type);
       path.setAttribute("marker-end", `url(#arrow-${type})`);
-    }
+    });
+
+    // Update the label to reflect the new connection type
+    this.updateConnectionLabel(connectionId);
   }
 }
