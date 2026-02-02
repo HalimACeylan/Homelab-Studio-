@@ -53,6 +53,7 @@ export class ConnectionManager {
     // Create connection group
     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
     group.dataset.connectionId = connection.id;
+    group.classList.add("connection-group");
 
     // Create invisible hit area for easier clicking
     const hitArea = document.createElementNS(
@@ -102,6 +103,12 @@ export class ConnectionManager {
     group.appendChild(hitArea);
     group.appendChild(path);
 
+    // Add label with node names and bandwidth
+    const label = this.createConnectionLabel(connection, endpoints);
+    if (label) {
+      group.appendChild(label);
+    }
+
     this.connectionsLayer.appendChild(group);
   }
 
@@ -133,20 +140,114 @@ export class ConnectionManager {
     }
   }
 
-  createLabel(endpoints, text) {
+  createConnectionLabel(connection, endpoints) {
+    const sourceNode = this.app.diagram.nodes.get(connection.sourceId);
+    const targetNode = this.app.diagram.nodes.get(connection.targetId);
+
+    if (!sourceNode || !targetNode) return null;
+
     const midX = (endpoints.source.x + endpoints.target.x) / 2;
     const midY = (endpoints.source.y + endpoints.target.y) / 2;
 
-    const label = document.createElementNS(
+    // Build label text
+    const sourceName =
+      sourceNode.properties.name || sourceNode.type || "Unknown";
+    const targetName =
+      targetNode.properties.name || targetNode.type || "Unknown";
+    const bandwidth = connection.properties.bandwidth || "1000";
+    const bandwidthUnit = connection.properties.bandwidthUnit || "Mbit";
+    const connectionName = connection.properties.name;
+
+    // Create a group for the label
+    const labelGroup = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "g"
+    );
+    labelGroup.classList.add("connection-label-group");
+
+    // Background rectangle for better readability
+    const bgRect = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "rect"
+    );
+    bgRect.classList.add("connection-label-bg");
+
+    // Main label text
+    const labelText = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "text"
     );
-    label.classList.add("connection-label");
-    label.setAttribute("x", midX);
-    label.setAttribute("y", midY); // Centered line height handles baseline
-    label.textContent = text;
+    labelText.classList.add("connection-label");
+    labelText.setAttribute("x", midX);
+    labelText.setAttribute("y", midY);
+    labelText.setAttribute("text-anchor", "middle");
+    labelText.setAttribute("dominant-baseline", "middle");
 
-    return label;
+    // Create tspan elements for multi-line label
+    let yOffset = -10;
+
+    // Connection name (if exists)
+    if (connectionName) {
+      const nameTspan = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "tspan"
+      );
+      nameTspan.setAttribute("x", midX);
+      nameTspan.setAttribute("dy", yOffset);
+      nameTspan.textContent = connectionName;
+      nameTspan.style.fontWeight = "600";
+      labelText.appendChild(nameTspan);
+      yOffset = 14;
+    }
+
+    // Node names
+    const nodesTspan = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "tspan"
+    );
+    nodesTspan.setAttribute("x", midX);
+    nodesTspan.setAttribute("dy", connectionName ? yOffset : yOffset);
+    nodesTspan.textContent = `${sourceName} → ${targetName}`;
+    nodesTspan.style.fontSize = "11px";
+    labelText.appendChild(nodesTspan);
+
+    // Bandwidth
+    const bandwidthTspan = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "tspan"
+    );
+    bandwidthTspan.setAttribute("x", midX);
+    bandwidthTspan.setAttribute("dy", 14);
+    bandwidthTspan.textContent = `${bandwidth} ${bandwidthUnit}`;
+    bandwidthTspan.style.fontSize = "10px";
+    bandwidthTspan.style.opacity = "0.8";
+    labelText.appendChild(bandwidthTspan);
+
+    // Calculate background size based on text
+    labelGroup.appendChild(labelText);
+
+    // Add background after text to calculate bounds
+    setTimeout(() => {
+      try {
+        const bbox = labelText.getBBox();
+        bgRect.setAttribute("x", bbox.x - 4);
+        bgRect.setAttribute("y", bbox.y - 2);
+        bgRect.setAttribute("width", bbox.width + 8);
+        bgRect.setAttribute("height", bbox.height + 4);
+        bgRect.setAttribute("rx", "3");
+        labelGroup.insertBefore(bgRect, labelText);
+      } catch (e) {
+        // Fallback if getBBox fails
+        bgRect.setAttribute("x", midX - 50);
+        bgRect.setAttribute("y", midY - 20);
+        bgRect.setAttribute("width", 100);
+        bgRect.setAttribute("height", 40);
+        bgRect.setAttribute("rx", "3");
+        labelGroup.insertBefore(bgRect, labelText);
+      }
+    }, 0);
+
+    return labelGroup;
   }
 
   updateConnectionsForNode(nodeId) {
@@ -165,14 +266,43 @@ export class ConnectionManager {
     if (!endpoints) return;
 
     const group = this.connectionsLayer.querySelector(
-      `[data-connection-id="${connectionId}"]`
+      `g.connection-group[data-connection-id="${connectionId}"]`
     );
     if (!group) return;
 
+    // Update paths
     const paths = group.querySelectorAll("path");
     if (paths.length > 0) {
       const pathData = this.calculatePath(endpoints.source, endpoints.target);
       paths.forEach((p) => p.setAttribute("d", pathData));
+    }
+
+    // Update label
+    this.updateConnectionLabel(connectionId);
+  }
+
+  updateConnectionLabel(connectionId) {
+    const connection = this.app.diagram.connections.get(connectionId);
+    if (!connection) return;
+
+    const endpoints = this.app.diagram.getConnectionEndpoints(connectionId);
+    if (!endpoints) return;
+
+    const group = this.connectionsLayer.querySelector(
+      `g.connection-group[data-connection-id="${connectionId}"]`
+    );
+    if (!group) return;
+
+    // Remove old label
+    const oldLabel = group.querySelector(".connection-label-group");
+    if (oldLabel) {
+      oldLabel.remove();
+    }
+
+    // Add new label
+    const newLabel = this.createConnectionLabel(connection, endpoints);
+    if (newLabel) {
+      group.appendChild(newLabel);
     }
   }
 

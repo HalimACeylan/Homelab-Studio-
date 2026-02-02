@@ -2233,18 +2233,24 @@ body {
 
 .connection-label {
   font-family: var(--font-sans);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
-  fill: var(--text-tertiary);
-  background: var(--bg-primary);
+  fill: var(--text-primary);
   text-anchor: middle;
   dominant-baseline: middle;
   pointer-events: none;
-  paint-order: stroke;
-  stroke: var(--bg-primary);
-  stroke-width: 3px;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+}
+
+.connection-label-group {
+  pointer-events: none;
+}
+
+.connection-label-bg {
+  fill: var(--bg-secondary);
+  stroke: var(--border-primary);
+  stroke-width: 1;
+  opacity: 0.95;
+  rx: 3;
 }
 
 /* ===================================

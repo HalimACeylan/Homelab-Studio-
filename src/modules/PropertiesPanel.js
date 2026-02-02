@@ -449,9 +449,24 @@ export class PropertiesPanel {
     const sourceNode = this.app.diagram.nodes.get(connection.sourceId);
     const targetNode = this.app.diagram.nodes.get(connection.targetId);
 
+    // Parse bandwidth value and unit
+    const bandwidth = connection.properties.bandwidth || "1000";
+    const bandwidthUnit = connection.properties.bandwidthUnit || "Mbit";
+    const bandwidthValue = parseFloat(bandwidth) || 1000;
+
+    // Determine max value based on unit
+    const maxValue = bandwidthUnit === "Gbit" ? 100 : 10000;
+
     this.content.innerHTML = `
       <div class="property-group">
         <div class="property-group-title">Connection</div>
+        <div class="property-row">
+          <label class="property-label" for="conn-name">Name</label>
+          <input type="text" class="property-input" id="conn-name" 
+                 value="${
+                   connection.properties.name || ""
+                 }" placeholder="Connection name...">
+        </div>
         <div class="property-row">
           <label class="property-label">From</label>
           <input type="text" class="property-input" value="${
@@ -482,6 +497,35 @@ export class PropertiesPanel {
               .join("")}
           </select>
         </div>
+        
+        <!-- Bandwidth Spec -->
+        <div class="spec-input-container">
+          <div class="spec-header">
+            <label class="property-label">Bandwidth</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="number" step="${
+                bandwidthUnit === "Gbit" ? "0.1" : "1"
+              }" 
+                     min="${bandwidthUnit === "Gbit" ? "0.1" : "1"}" 
+                     max="${maxValue}" 
+                     class="spec-numeric-input" id="conn-bandwidth-num" 
+                     value="${bandwidthValue}">
+              <select class="property-select" id="conn-bandwidth-unit" style="width: auto; min-width: 80px;">
+                <option value="Mbit" ${
+                  bandwidthUnit === "Mbit" ? "selected" : ""
+                }>Mbit</option>
+                <option value="Gbit" ${
+                  bandwidthUnit === "Gbit" ? "selected" : ""
+                }>Gbit</option>
+              </select>
+            </div>
+          </div>
+          <input type="range" step="${bandwidthUnit === "Gbit" ? "0.1" : "1"}" 
+                 min="${bandwidthUnit === "Gbit" ? "0.1" : "1"}" 
+                 max="${maxValue}" 
+                 class="spec-slider" id="conn-bandwidth-range" 
+                 value="${bandwidthValue}">
+        </div>
       </div>
 
       <div class="property-group">
@@ -497,12 +541,93 @@ export class PropertiesPanel {
   }
 
   bindConnectionPropertyHandlers(connectionId) {
+    // Name
+    document.getElementById("conn-name")?.addEventListener("input", (e) => {
+      this.updateConnectionProperty(connectionId, "name", e.target.value);
+      this.app.connections.updateConnectionLabel(connectionId);
+    });
+
     // Type
     document.getElementById("conn-type")?.addEventListener("change", (e) => {
       const type = e.target.value;
       this.app.diagram.updateConnection(connectionId, { type });
       this.app.connections.updateConnectionStyle(connectionId, type);
     });
+
+    // Bandwidth - Setup dual input (number + range)
+    const setupBandwidthInput = () => {
+      const numInput = document.getElementById("conn-bandwidth-num");
+      const rangeInput = document.getElementById("conn-bandwidth-range");
+      const unitSelect = document.getElementById("conn-bandwidth-unit");
+
+      if (!numInput || !rangeInput || !unitSelect) return;
+
+      const updateBandwidth = (val) => {
+        let numericVal = parseFloat(val);
+        const unit = unitSelect.value;
+        const maxVal = unit === "Gbit" ? 100 : 10000;
+        const minVal = unit === "Gbit" ? 0.1 : 1;
+
+        if (isNaN(numericVal)) return;
+
+        // Clamp
+        if (numericVal > maxVal) numericVal = maxVal;
+        if (numericVal < minVal) numericVal = minVal;
+
+        numInput.value = numericVal;
+        rangeInput.value = numericVal;
+
+        this.updateConnectionProperty(
+          connectionId,
+          "bandwidth",
+          numericVal.toString()
+        );
+        this.updateConnectionProperty(connectionId, "bandwidthUnit", unit);
+        this.app.connections.updateConnectionLabel(connectionId);
+      };
+
+      const updateUnit = () => {
+        const unit = unitSelect.value;
+        const currentVal = parseFloat(numInput.value);
+        const maxVal = unit === "Gbit" ? 100 : 10000;
+        const minVal = unit === "Gbit" ? 0.1 : 1;
+        const step = unit === "Gbit" ? 0.1 : 1;
+
+        // Update input constraints
+        numInput.setAttribute("max", maxVal);
+        numInput.setAttribute("min", minVal);
+        numInput.setAttribute("step", step);
+        rangeInput.setAttribute("max", maxVal);
+        rangeInput.setAttribute("min", minVal);
+        rangeInput.setAttribute("step", step);
+
+        // Clamp current value to new range
+        let newVal = currentVal;
+        if (newVal > maxVal) newVal = maxVal;
+        if (newVal < minVal) newVal = minVal;
+
+        numInput.value = newVal;
+        rangeInput.value = newVal;
+
+        this.updateConnectionProperty(
+          connectionId,
+          "bandwidth",
+          newVal.toString()
+        );
+        this.updateConnectionProperty(connectionId, "bandwidthUnit", unit);
+        this.app.connections.updateConnectionLabel(connectionId);
+      };
+
+      numInput.addEventListener("input", (e) =>
+        updateBandwidth(e.target.value)
+      );
+      rangeInput.addEventListener("input", (e) =>
+        updateBandwidth(e.target.value)
+      );
+      unitSelect.addEventListener("change", updateUnit);
+    };
+
+    setupBandwidthInput();
 
     // Delete
     document
