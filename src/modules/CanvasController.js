@@ -995,12 +995,29 @@ export class CanvasController {
       }
     });
 
+    // Get connections between selected nodes
+    const connectionsToCopy = [];
+    if (this.app.diagram.connections) {
+      this.app.diagram.connections.forEach((conn) => {
+        // Check if both source and target are in the selection
+        if (
+          this.selectedNodeIds.has(conn.sourceId) &&
+          this.selectedNodeIds.has(conn.targetId)
+        ) {
+          connectionsToCopy.push(JSON.parse(JSON.stringify(conn)));
+        }
+      });
+    }
+
     this.clipboard = {
       nodes: nodesToCopy,
+      connections: connectionsToCopy,
       timestamp: Date.now(),
     };
 
-    console.log(`Copied ${nodesToCopy.length} node(s) to clipboard`);
+    console.log(
+      `Copied ${nodesToCopy.length} node(s) and ${connectionsToCopy.length} connection(s) to clipboard`
+    );
     if (this.app.ui && this.app.ui.showToast) {
       this.app.ui.showToast(`Copied ${nodesToCopy.length} node(s)`, "info");
     }
@@ -1023,6 +1040,7 @@ export class CanvasController {
     this.clearSelection();
 
     const newNodeIds = [];
+    const idMap = new Map(); // Map old ID -> new ID
     const offset = 30; // Offset for pasted nodes
 
     // Paste each node
@@ -1031,6 +1049,9 @@ export class CanvasController {
       const newId = `node-${Date.now()}-${Math.random()
         .toString(36)
         .substr(2, 9)}`;
+
+      // Map old ID to new ID for connection mapping
+      idMap.set(copiedNode.id, newId);
 
       // Create new node with offset position
       const newNode = {
@@ -1057,6 +1078,25 @@ export class CanvasController {
       this.renderNode(newNode);
     });
 
+    // Paste connections if any
+    let pastedConnections = 0;
+    if (this.clipboard.connections && this.clipboard.connections.length > 0) {
+      this.clipboard.connections.forEach((conn) => {
+        // Get new source and target IDs
+        const newSourceId = idMap.get(conn.sourceId);
+        const newTargetId = idMap.get(conn.targetId);
+
+        // Only create connection if both endpoints exist (they should)
+        if (newSourceId && newTargetId) {
+          this.app.addConnection(newSourceId, newTargetId, {
+            ...conn.properties,
+            type: conn.type, // Ensure type is preserved
+          });
+          pastedConnections++;
+        }
+      });
+    }
+
     // Select the newly pasted nodes
     newNodeIds.forEach((id) => {
       this.selectedNodeIds.add(id);
@@ -1073,7 +1113,9 @@ export class CanvasController {
       this.app.selectNode(newNodeIds[0]);
     }
 
-    console.log(`Pasted ${newNodeIds.length} node(s)`);
+    console.log(
+      `Pasted ${newNodeIds.length} node(s) and ${pastedConnections} connection(s)`
+    );
     if (this.app.ui && this.app.ui.showToast) {
       this.app.ui.showToast(`Pasted ${newNodeIds.length} node(s)`, "success");
     }
