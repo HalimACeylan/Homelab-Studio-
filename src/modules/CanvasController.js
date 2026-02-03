@@ -40,6 +40,9 @@ export class CanvasController {
     this.gridSize = 20;
     this.snapEnabled = true;
 
+    // Clipboard for copy/paste
+    this.clipboard = null;
+
     this.setupEventListeners();
   }
 
@@ -964,5 +967,115 @@ export class CanvasController {
         this.renderGroup(group);
       }
     });
+  }
+
+  /**
+   * Copy selected nodes to clipboard
+   */
+  copyNodes() {
+    if (this.selectedNodeIds.size === 0) {
+      console.log("No nodes selected to copy");
+      return;
+    }
+
+    // Get all selected nodes
+    const nodesToCopy = [];
+    this.selectedNodeIds.forEach((nodeId) => {
+      // Handle both Map and Array (likely a Map)
+      let node;
+      if (this.app.diagram.nodes instanceof Map) {
+        node = this.app.diagram.nodes.get(nodeId);
+      } else if (Array.isArray(this.app.diagram.nodes)) {
+        node = this.app.diagram.nodes.find((n) => n.id === nodeId);
+      }
+
+      if (node) {
+        // Deep clone the node
+        nodesToCopy.push(JSON.parse(JSON.stringify(node)));
+      }
+    });
+
+    this.clipboard = {
+      nodes: nodesToCopy,
+      timestamp: Date.now(),
+    };
+
+    console.log(`Copied ${nodesToCopy.length} node(s) to clipboard`);
+    if (this.app.ui && this.app.ui.showToast) {
+      this.app.ui.showToast(`Copied ${nodesToCopy.length} node(s)`, "info");
+    }
+  }
+
+  /**
+   * Paste nodes from clipboard
+   */
+  pasteNodes() {
+    if (
+      !this.clipboard ||
+      !this.clipboard.nodes ||
+      this.clipboard.nodes.length === 0
+    ) {
+      console.log("Clipboard is empty");
+      return;
+    }
+
+    // Clear current selection
+    this.clearSelection();
+
+    const newNodeIds = [];
+    const offset = 30; // Offset for pasted nodes
+
+    // Paste each node
+    this.clipboard.nodes.forEach((copiedNode) => {
+      // Generate new ID
+      const newId = `node-${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
+      // Create new node with offset position
+      const newNode = {
+        ...copiedNode,
+        id: newId,
+        x: copiedNode.x + offset,
+        y: copiedNode.y + offset,
+        zIndex:
+          (this.app.diagram.nodes instanceof Map
+            ? this.app.diagram.nodes.size
+            : this.app.diagram.nodes.length) + 1,
+      };
+
+      // Add to diagram
+      if (this.app.diagram.nodes instanceof Map) {
+        this.app.diagram.nodes.set(newId, newNode);
+      } else {
+        this.app.diagram.nodes.push(newNode);
+      }
+
+      newNodeIds.push(newId);
+
+      // Render the new node
+      this.renderNode(newNode);
+    });
+
+    // Select the newly pasted nodes
+    newNodeIds.forEach((id) => {
+      this.selectedNodeIds.add(id);
+      const nodeElement = this.nodesLayer.querySelector(
+        `[data-node-id="${id}"]`
+      );
+      if (nodeElement) {
+        nodeElement.classList.add("selected");
+      }
+    });
+
+    // Update the first pasted node in properties panel
+    if (newNodeIds.length > 0) {
+      this.app.selectNode(newNodeIds[0]);
+    }
+
+    console.log(`Pasted ${newNodeIds.length} node(s)`);
+    if (this.app.ui && this.app.ui.showToast) {
+      this.app.ui.showToast(`Pasted ${newNodeIds.length} node(s)`, "success");
+    }
   }
 }

@@ -102,6 +102,26 @@ export class KeyboardController {
       }
     }
 
+    // Copy (Cmd/Ctrl + C)
+    if (cmdKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log("Copy shortcut triggered");
+      if (this.app.canvas.selectedNodeIds.size > 0) {
+        this.app.canvas.copyNodes();
+      } else {
+        console.log("No nodes selected to copy");
+      }
+    }
+
+    // Paste (Cmd/Ctrl + V)
+    if (cmdKey && e.key.toLowerCase() === "v") {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log("Paste shortcut triggered");
+      this.app.canvas.pasteNodes();
+    }
+
     // Select All (Cmd/Ctrl + A)
     if (cmdKey && e.key === "a") {
       e.preventDefault();
@@ -300,12 +320,16 @@ export class KeyboardController {
         }
       }
     }
-    // Mode switching shortcuts
-    if (e.key.toLowerCase() === "v") {
+
+    // Mode switching shortcuts - only when no modifier keys are pressed
+    if (e.key.toLowerCase() === "v" && !cmdKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
       const selectBtn = document.querySelector('.tool-btn[data-mode="select"]');
       if (selectBtn) selectBtn.click();
     }
-    if (e.key.toLowerCase() === "c") {
+
+    if (e.key.toLowerCase() === "c" && !cmdKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
       // Toggle to last active or first connect tool
       const activeConnect = document.querySelector(
         '.tool-btn[data-mode="connect"].active'
