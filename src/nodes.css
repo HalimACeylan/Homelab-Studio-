@@ -671,11 +671,11 @@
 }
 
 .canvas-node[data-node-type="router"]::before {
-  background-image: url("/icons/router.svg");
+  background-image: url("/icons/hardware/router.svg");
 }
 
 .canvas-node[data-node-type="switch"]::before {
-  background-image: url("/icons/switch.svg");
+  background-image: url("/icons/hardware/switch.svg");
 }
 
 /* Hover/Selection Effects on the Shape */
