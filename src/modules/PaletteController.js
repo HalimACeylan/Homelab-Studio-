@@ -99,7 +99,23 @@ export class PaletteController {
       appsSection.innerHTML = "";
       Object.entries(APPLICATION_TYPES).forEach(([type, config]) => {
         // Docker might be marked as v-os but it's an app
-        appsSection.appendChild(createItem(type, config, "application"));
+        // Exclude local_llm and ai_models from applications section
+        if (config.category !== "local_llm") {
+          appsSection.appendChild(createItem(type, config, "application"));
+        }
+      });
+    }
+
+    // 6. Local LLM
+    const localLlmSection = this.palette.querySelector(
+      '[data-section="local_llm"] .palette-items'
+    );
+    if (localLlmSection) {
+      localLlmSection.innerHTML = "";
+      Object.entries(APPLICATION_TYPES).forEach(([type, config]) => {
+        if (config.category === "local_llm") {
+          localLlmSection.appendChild(createItem(type, config, "application"));
+        }
       });
     }
 

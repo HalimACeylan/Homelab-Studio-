@@ -7,6 +7,7 @@ export const NODE_CATEGORIES = {
   network: { name: "Network", color: "#22c55e" },
   "operating-system": { name: "Operating Systems", color: "#f59e0b" },
   "v-os": { name: "Hypervisors", color: "#8b5cf6" },
+  local_llm: { name: "Local LLM", color: "#4f46e5" },
 };
 
 // Operating Systems
@@ -393,15 +394,89 @@ export const APPLICATION_TYPES = {
   ollama: {
     name: "Ollama",
     icon: "ollama",
-    color: "#000000",
     description: "Get up and running with large language models",
+    category: "local_llm",
   },
   "open-webui": {
     name: "Open WebUI",
     icon: "service",
     color: "#303030",
     description: "User-friendly WebUI for LLMs",
+    category: "local_llm",
   },
+
+  // --- Local LLM Runners ---
+  "llama-cpp": {
+    name: "Llama.cpp",
+    icon: "llama",
+    color: "#f59e0b",
+    category: "local_llm",
+    description: "Port of Facebook's LLaMA model in C/C++",
+  },
+  "lm-studio": {
+    name: "LM Studio",
+    icon: "lm-studio",
+    color: "#4f46e5",
+    category: "local_llm",
+    description: "Discover, download, and run local LLMs",
+  },
+  localai: {
+    name: "LocalAI",
+    icon: "localai",
+    color: "#3b82f6",
+    category: "local_llm",
+    description: "Drop-in replacement for OpenAI API",
+  },
+  "text-gen-webui": {
+    name: "Text Gen WebUI",
+    icon: "text-gen-webui",
+    color: "#10b981",
+    category: "local_llm",
+    description: "Gradio web UI for Large Language Models",
+  },
+  gpt4all: {
+    name: "GPT4All",
+    icon: "gpt4all",
+    color: "#14b8a6",
+    category: "local_llm",
+    description: "Run open-source LLMs everywhere",
+  },
+  vllm: {
+    name: "vLLM",
+    icon: "vllm",
+    color: "#eab308",
+    category: "local_llm",
+    description: "High-throughput and memory-efficient LLM engine",
+  },
+  huggingface: {
+    name: "Hugging Face",
+    icon: "huggingface",
+    color: "#fbbf24",
+    category: "local_llm",
+    description: "Transformers / Generic Models",
+  },
+  privategpt: {
+    name: "PrivateGPT",
+    icon: "privategpt",
+    color: "#6366f1",
+    category: "local_llm",
+    description: "Interact with your documents using LLMs",
+  },
+  jan: {
+    name: "Jan",
+    icon: "jan",
+    color: "#0ea5e9",
+    category: "local_llm",
+    description: "Open source alternative to ChatGPT",
+  },
+  anythingllm: {
+    name: "AnythingLLM",
+    icon: "anythingllm",
+    color: "#8b5cf6",
+    category: "local_llm",
+    description: "All-in-one desktop AI application",
+  },
+
   obsidian: {
     name: "Obsidian",
     icon: "obsidian",

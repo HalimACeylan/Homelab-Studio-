@@ -873,3 +873,38 @@
 .cloudflare-dns-icon { background-image: url("/icons/applications/devicon--cloudflare.svg"); }
 .pfsense-icon { background-image: url("/icons/os/simple-icons--pfsense.svg"); }
 .openwrt-icon { background-image: url("/icons/os/simple-icons--openwrt.svg"); }
+
+/* Local LLM Icons */
+.llama-cpp-icon, .anythingllm-icon, .lm-studio-icon, .localai-icon, .text-gen-webui-icon, .gpt4all-icon, .vllm-icon, .huggingface-icon, .privategpt-icon, .jan-icon,
+.llama-3-icon, .mistral-icon, .gemma-icon, .phi-3-icon, .qwen-icon, .yi-icon, .deepseek-icon, .command-r-icon, .tinyllama-icon, .falcon-icon, .stable-diffusion-icon, .generic-model-icon {
+  width: 32px;
+  height: 32px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Specific mapped icons (using generic AI or specific paths if available) */
+.llama-cpp-icon { background-image: url("/icons/applications/simple-icons--meta.svg"); } /* Proxy for Llama */
+.huggingface-icon { background-image: url("/icons/applications/simple-icons--huggingface.svg"); }
+.localai-icon { background-image: url("/icons/applications/carbon--ai.svg"); }
+.lm-studio-icon { background-image: url("/icons/applications/carbon--ai-status-complete.svg"); }
+.vllm-icon { background-image: url("/icons/applications/carbon--flash.svg"); } /* Fast */
+.gpt4all-icon { background-image: url("/icons/applications/carbon--bot.svg"); }
+.jan-icon { background-image: url("/icons/applications/carbon--chat-bot.svg"); }
+.privategpt-icon { background-image: url("/icons/applications/carbon--security.svg"); }
+.anythingllm-icon { background-image: url("/icons/applications/carbon--application.svg"); }
+.text-gen-webui-icon { background-image: url("/icons/applications/carbon--terminal.svg"); }
+
+/* Models */
+.llama-3-icon, .tinyllama-icon { background-image: url("/icons/applications/simple-icons--meta.svg"); }
+.mistral-icon { background-image: url("/icons/applications/carbon--windy.svg"); } /* Mistral = Wind */
+.gemma-icon { background-image: url("/icons/applications/simple-icons--google.svg"); }
+.phi-3-icon { background-image: url("/icons/applications/simple-icons--microsoft.svg"); }
+.qwen-icon { background-image: url("/icons/applications/simple-icons--alibaba.svg"); } /* Assuming exists or fallback */
+.deepseek-icon { background-image: url("/icons/applications/carbon--code.svg"); }
+.stable-diffusion-icon { background-image: url("/icons/applications/simple-icons--stabilityai.svg"); }
+.generic-model-icon, .yi-icon, .falcon-icon, .command-r-icon { background-image: url("/icons/applications/carbon--model.svg"); }
