@@ -126,6 +126,11 @@ export class ConnectionManager {
     const midX = (endpoints.source.x + endpoints.target.x) / 2;
     const midY = (endpoints.source.y + endpoints.target.y) / 2;
 
+    // Check if either node is a user device
+    const isUserDevice =
+      sourceNode.category === "user-device" ||
+      targetNode.category === "user-device";
+
     // Build label text
     const sourceName =
       sourceNode.properties.name || sourceNode.type || "Unknown";
@@ -163,58 +168,73 @@ export class ConnectionManager {
     labelText.setAttribute("text-anchor", "middle");
     labelText.setAttribute("dominant-baseline", "middle");
 
-    // Create tspan elements for multi-line label
-    let yOffset = connectionName ? -17 : -10;
-
-    // Connection name (if exists)
-    if (connectionName) {
-      const nameTspan = document.createElementNS(
+    if (isUserDevice) {
+      // Simplified label for user devices (Bandwidth only)
+      const bandwidthTspan = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "tspan"
       );
-      nameTspan.setAttribute("x", midX);
-      nameTspan.setAttribute("dy", yOffset);
-      nameTspan.textContent = connectionName;
-      nameTspan.style.fontWeight = "600";
-      labelText.appendChild(nameTspan);
-      yOffset = 14;
+      bandwidthTspan.setAttribute("x", midX);
+      bandwidthTspan.setAttribute("dy", 0); // Center vertically
+      bandwidthTspan.textContent = `${bandwidth} ${bandwidthUnit}`;
+      bandwidthTspan.style.fontSize = "10px";
+      bandwidthTspan.style.fontWeight = "600";
+      bandwidthTspan.style.opacity = "0.9";
+      labelText.appendChild(bandwidthTspan);
+    } else {
+      // Full detailed label for infrastructure
+      let yOffset = connectionName ? -17 : -10;
+
+      // Connection name (if exists)
+      if (connectionName) {
+        const nameTspan = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "tspan"
+        );
+        nameTspan.setAttribute("x", midX);
+        nameTspan.setAttribute("dy", yOffset);
+        nameTspan.textContent = connectionName;
+        nameTspan.style.fontWeight = "600";
+        labelText.appendChild(nameTspan);
+        yOffset = 14;
+      }
+
+      // Node names
+      const nodesTspan = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "tspan"
+      );
+      nodesTspan.setAttribute("x", midX);
+      nodesTspan.setAttribute("dy", yOffset);
+      nodesTspan.textContent = `${sourceName} → ${targetName}`;
+      nodesTspan.style.fontSize = "11px";
+      labelText.appendChild(nodesTspan);
+
+      // Connection Type
+      const typeTspan = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "tspan"
+      );
+      typeTspan.setAttribute("x", midX);
+      typeTspan.setAttribute("dy", 14);
+      typeTspan.textContent = connectionTypeName;
+      typeTspan.style.fontSize = "10px";
+      typeTspan.style.opacity = "0.7";
+      typeTspan.style.fontStyle = "italic";
+      labelText.appendChild(typeTspan);
+
+      // Bandwidth
+      const bandwidthTspan = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "tspan"
+      );
+      bandwidthTspan.setAttribute("x", midX);
+      bandwidthTspan.setAttribute("dy", 14);
+      bandwidthTspan.textContent = `${bandwidth} ${bandwidthUnit}`;
+      bandwidthTspan.style.fontSize = "10px";
+      bandwidthTspan.style.opacity = "0.8";
+      labelText.appendChild(bandwidthTspan);
     }
-
-    // Node names
-    const nodesTspan = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "tspan"
-    );
-    nodesTspan.setAttribute("x", midX);
-    nodesTspan.setAttribute("dy", yOffset);
-    nodesTspan.textContent = `${sourceName} → ${targetName}`;
-    nodesTspan.style.fontSize = "11px";
-    labelText.appendChild(nodesTspan);
-
-    // Connection Type
-    const typeTspan = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "tspan"
-    );
-    typeTspan.setAttribute("x", midX);
-    typeTspan.setAttribute("dy", 14);
-    typeTspan.textContent = connectionTypeName;
-    typeTspan.style.fontSize = "10px";
-    typeTspan.style.opacity = "0.7";
-    typeTspan.style.fontStyle = "italic";
-    labelText.appendChild(typeTspan);
-
-    // Bandwidth
-    const bandwidthTspan = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "tspan"
-    );
-    bandwidthTspan.setAttribute("x", midX);
-    bandwidthTspan.setAttribute("dy", 14);
-    bandwidthTspan.textContent = `${bandwidth} ${bandwidthUnit}`;
-    bandwidthTspan.style.fontSize = "10px";
-    bandwidthTspan.style.opacity = "0.8";
-    labelText.appendChild(bandwidthTspan);
 
     // Calculate background size based on text
     labelGroup.appendChild(labelText);
@@ -231,10 +251,12 @@ export class ConnectionManager {
         labelGroup.insertBefore(bgRect, labelText);
       } catch (e) {
         // Fallback if getBBox fails
-        bgRect.setAttribute("x", midX - 60);
-        bgRect.setAttribute("y", midY - 30);
-        bgRect.setAttribute("width", 120);
-        bgRect.setAttribute("height", 60);
+        const width = isUserDevice ? 60 : 120;
+        const height = isUserDevice ? 20 : 60;
+        bgRect.setAttribute("x", midX - width / 2);
+        bgRect.setAttribute("y", midY - height / 2);
+        bgRect.setAttribute("width", width);
+        bgRect.setAttribute("height", height);
         bgRect.setAttribute("rx", "3");
         labelGroup.insertBefore(bgRect, labelText);
       }

@@ -668,6 +668,110 @@ export class UIController {
           }
 
           svg.appendChild(path);
+
+          // Draw Label
+          const midX = (sx + tx) / 2;
+          const midY = (sy + ty) / 2;
+          const sourceNode = this.app.diagram.nodes.get(connection.sourceId);
+          const targetNode = this.app.diagram.nodes.get(connection.targetId);
+
+          if (sourceNode && targetNode) {
+            const isUserDevice =
+              sourceNode.category === "user-device" ||
+              targetNode.category === "user-device";
+
+            const bandwidth = connection.properties.bandwidth || "1000";
+            const bandwidthUnit = connection.properties.bandwidthUnit || "Mbit";
+
+            // Label Group
+            const labelGroup = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "g"
+            );
+
+            // Background Rect
+            const bgRect = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "rect"
+            );
+            bgRect.setAttribute("fill", "#0d1117"); // Match background color for overlay effect
+            bgRect.setAttribute("rx", "3");
+
+            // Label Text
+            const text = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "text"
+            );
+            text.setAttribute("x", midX);
+            text.setAttribute("y", midY);
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("dominant-baseline", "middle");
+            text.setAttribute("font-family", "Inter, sans-serif");
+            text.setAttribute("fill", "var(--text-primary)"); // Will fail in export, hardcode color
+            text.setAttribute("fill", "#f0f6fc");
+
+            if (isUserDevice) {
+              // Simplified Label
+              text.textContent = `${bandwidth} ${bandwidthUnit}`;
+              text.setAttribute("font-size", "10");
+              text.setAttribute("font-weight", "600");
+
+              // Approx bg size
+              bgRect.setAttribute("x", midX - 30);
+              bgRect.setAttribute("y", midY - 10);
+              bgRect.setAttribute("width", 60);
+              bgRect.setAttribute("height", 20);
+            } else {
+              // Full Label logic omitted for brevity in SVG export usually, but let's try to match editor
+              // For simplicity in export, let's just show connection name OR bandwidth + type
+              const connectionName = connection.properties.name;
+
+              if (connectionName) {
+                const tspanName = document.createElementNS(
+                  "http://www.w3.org/2000/svg",
+                  "tspan"
+                );
+                tspanName.textContent = connectionName;
+                tspanName.setAttribute("x", midX);
+                tspanName.setAttribute("dy", "-10");
+                tspanName.setAttribute("font-weight", "600");
+                text.appendChild(tspanName);
+              }
+
+              const tspanNodes = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "tspan"
+              );
+              tspanNodes.textContent = `${
+                sourceNode.properties.name || sourceNode.type
+              } → ${targetNode.properties.name || targetNode.type}`;
+              tspanNodes.setAttribute("x", midX);
+              tspanNodes.setAttribute("dy", connectionName ? "14" : "0");
+              tspanNodes.setAttribute("font-size", "11");
+              text.appendChild(tspanNodes);
+
+              const tspanSpeed = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "tspan"
+              );
+              tspanSpeed.textContent = `${bandwidth} ${bandwidthUnit}`;
+              tspanSpeed.setAttribute("x", midX);
+              tspanSpeed.setAttribute("dy", "14");
+              tspanSpeed.setAttribute("font-size", "10");
+              tspanSpeed.setAttribute("opacity", "0.8");
+              text.appendChild(tspanSpeed);
+
+              // Approx bg size for full label
+              bgRect.setAttribute("x", midX - 60);
+              bgRect.setAttribute("y", midY - 30);
+              bgRect.setAttribute("width", 120);
+              bgRect.setAttribute("height", 60);
+            }
+
+            labelGroup.appendChild(bgRect);
+            labelGroup.appendChild(text);
+            svg.appendChild(labelGroup);
+          }
         }
       });
 
