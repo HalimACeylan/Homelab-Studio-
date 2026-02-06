@@ -268,18 +268,19 @@ export class KeyboardController {
     if (
       !cmdKey &&
       !e.shiftKey &&
-      ["1", "2", "3", "4", "5", "6"].includes(e.key)
+      ["1", "2", "3", "4", "5", "6", "7"].includes(e.key)
     ) {
       e.preventDefault();
 
-      // Map: 1=Drag, 2=Select, 3=Ethernet, 4=Wireless, 5=Fiber, 6=USB
+      // Map: 1=Drag, 2=Select, 3=Text, 4=Ethernet, 5=Wireless, 6=Fiber, 7=USB
       const toolMap = {
         1: { mode: "select", type: null }, // Drag
         2: { mode: "marquee", type: null }, // Select
-        3: { mode: "connect", type: "ethernet" }, // Ethernet
-        4: { mode: "connect", type: "wireless" }, // Wireless/WiFi
-        5: { mode: "connect", type: "fiber" }, // Fiber
-        6: { mode: "connect", type: "usb" }, // USB
+        3: { mode: "text", type: null }, // Text
+        4: { mode: "connect", type: "ethernet" }, // Ethernet
+        5: { mode: "connect", type: "wireless" }, // Wireless/WiFi
+        6: { mode: "connect", type: "fiber" }, // Fiber
+        7: { mode: "connect", type: "usb" }, // USB
       };
 
       const tool = toolMap[e.key];
