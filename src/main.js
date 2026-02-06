@@ -267,6 +267,14 @@ class HomelabStudio {
 
     this.history.startBatch();
     selectedIds.forEach((id) => {
+      const item = this.diagram.textItems.get(id);
+      if (item) {
+        this.history.push({
+          type: "remove-text",
+          id: id,
+          data: { ...item },
+        });
+      }
       this.diagram.removeTextItem(id);
       const el = document.querySelector(`[data-text-id="${id}"]`);
       if (el) el.remove();
@@ -601,9 +609,18 @@ class HomelabStudio {
           item.y + 20,
           item.text
         );
+        // Also copy fontSize and color if present
+        if (item.fontSize) newItem.fontSize = item.fontSize;
+        if (item.color) newItem.color = item.color;
+
         const el = this.canvas.createTextElement(newItem);
-        // Copy style props if we ever support them
         newIds.push(newItem.id);
+
+        this.history.push({
+          type: "add-text",
+          id: newItem.id,
+          data: { ...newItem },
+        });
       }
     });
     this.history.endBatch("batch");
@@ -783,6 +800,23 @@ class HomelabStudio {
             }
           });
           break;
+        case "add-text":
+          this.diagram.removeTextItem(action.id);
+          this.canvas.textLayer
+            .querySelector(`[data-text-id="${action.id}"]`)
+            ?.remove();
+          break;
+        case "remove-text":
+          this.diagram.importTextItem(action.data);
+          this.canvas.createTextElement(action.data);
+          break;
+        case "move-text":
+          this.diagram.updateTextItem(action.id, {
+            x: action.data.oldX,
+            y: action.data.oldY,
+          });
+          this.canvas.updateTextElement(action.id);
+          break;
       }
     } else {
       switch (action.type) {
@@ -851,6 +885,23 @@ class HomelabStudio {
               this.canvas.renderGroup(group);
             }
           });
+          break;
+        case "add-text":
+          this.diagram.importTextItem(action.data);
+          this.canvas.createTextElement(action.data);
+          break;
+        case "remove-text":
+          this.diagram.removeTextItem(action.id);
+          this.canvas.textLayer
+            .querySelector(`[data-text-id="${action.id}"]`)
+            ?.remove();
+          break;
+        case "move-text":
+          this.diagram.updateTextItem(action.id, {
+            x: action.data.newX,
+            y: action.data.newY,
+          });
+          this.canvas.updateTextElement(action.id);
           break;
       }
     }

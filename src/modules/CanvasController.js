@@ -460,9 +460,31 @@ export class CanvasController {
       // Handle Text Items
       if (this.draggedNode.classList.contains("canvas-text")) {
         this.draggedNode.classList.remove("dragging");
-        // TODO: Add history for text move
+
+        const textId = this.draggedNode.dataset.textId;
+        const item = this.app.diagram.textItems.get(textId);
+
+        // Add history for text move if it actually moved
+        if (
+          item &&
+          this.dragStartPos &&
+          (item.x !== this.dragStartPos.x || item.y !== this.dragStartPos.y)
+        ) {
+          this.app.history.push({
+            type: "move-text",
+            id: textId,
+            data: {
+              oldX: this.dragStartPos.x,
+              oldY: this.dragStartPos.y,
+              newX: item.x,
+              newY: item.y,
+            },
+          });
+        }
+
         this.isDragging = false;
         this.draggedNode = null;
+        this.dragStartPos = null;
         return;
       }
 
@@ -740,6 +762,16 @@ export class CanvasController {
         if (midX > cX && midX < cX + cW && midY > cY && midY < cY + cH) {
           this.app.selectConnection(conn.id, true);
         }
+      }
+    });
+
+    // Select text items within rect
+    const textItems = this.app.diagram.textItems;
+    textItems.forEach((item) => {
+      // item.x and item.y are the center coordinates in canvas space
+      // Check if center point is in rect
+      if (item.x > cX && item.x < cX + cW && item.y > cY && item.y < cY + cH) {
+        this.app.selectTextItem(item.id, true);
       }
     });
   }
@@ -1037,27 +1069,40 @@ export class CanvasController {
    * Copy selected nodes to clipboard
    */
   copyNodes() {
-    if (this.selectedNodeIds.size === 0) {
-      console.log("No nodes selected to copy");
-      return;
-    }
-
     // Get all selected nodes
     const nodesToCopy = [];
-    this.selectedNodeIds.forEach((nodeId) => {
-      // Handle both Map and Array (likely a Map)
-      let node;
-      if (this.app.diagram.nodes instanceof Map) {
-        node = this.app.diagram.nodes.get(nodeId);
-      } else if (Array.isArray(this.app.diagram.nodes)) {
-        node = this.app.diagram.nodes.find((n) => n.id === nodeId);
-      }
+    if (this.selectedNodeIds.size > 0) {
+      this.selectedNodeIds.forEach((nodeId) => {
+        // Handle both Map and Array (likely a Map)
+        let node;
+        if (this.app.diagram.nodes instanceof Map) {
+          node = this.app.diagram.nodes.get(nodeId);
+        } else if (Array.isArray(this.app.diagram.nodes)) {
+          node = this.app.diagram.nodes.find((n) => n.id === nodeId);
+        }
 
-      if (node) {
-        // Deep clone the node
-        nodesToCopy.push(JSON.parse(JSON.stringify(node)));
-      }
-    });
+        if (node) {
+          // Deep clone the node
+          nodesToCopy.push(JSON.parse(JSON.stringify(node)));
+        }
+      });
+    }
+
+    // Get all selected text items
+    const textItemsToCopy = [];
+    if (this.selectedTextIds && this.selectedTextIds.size > 0) {
+      this.selectedTextIds.forEach((textId) => {
+        const item = this.app.diagram.textItems.get(textId);
+        if (item) {
+          textItemsToCopy.push(JSON.parse(JSON.stringify(item)));
+        }
+      });
+    }
+
+    if (nodesToCopy.length === 0 && textItemsToCopy.length === 0) {
+      console.log("No items selected to copy");
+      return;
+    }
 
     // Get connections between selected nodes
     const connectionsToCopy = [];
@@ -1076,14 +1121,16 @@ export class CanvasController {
     this.clipboard = {
       nodes: nodesToCopy,
       connections: connectionsToCopy,
+      textItems: textItemsToCopy,
       timestamp: Date.now(),
     };
 
+    const count = nodesToCopy.length + textItemsToCopy.length;
     console.log(
-      `Copied ${nodesToCopy.length} node(s) and ${connectionsToCopy.length} connection(s) to clipboard`
+      `Copied ${count} items and ${connectionsToCopy.length} connection(s) to clipboard`
     );
     if (this.app.ui && this.app.ui.showToast) {
-      this.app.ui.showToast(`Copied ${nodesToCopy.length} node(s)`, "info");
+      this.app.ui.showToast(`Copied ${count} item(s)`, "info");
     }
   }
 
@@ -1093,8 +1140,8 @@ export class CanvasController {
   pasteNodes() {
     if (
       !this.clipboard ||
-      !this.clipboard.nodes ||
-      this.clipboard.nodes.length === 0
+      ((!this.clipboard.nodes || this.clipboard.nodes.length === 0) &&
+        (!this.clipboard.textItems || this.clipboard.textItems.length === 0))
     ) {
       console.log("Clipboard is empty");
       return;
@@ -1109,52 +1156,81 @@ export class CanvasController {
     }
 
     const newNodeIds = [];
+    const newTextIds = [];
     const idMap = new Map(); // Map old ID -> new ID
     const offset = 30; // Offset for pasted nodes
 
     // Paste each node
-    this.clipboard.nodes.forEach((copiedNode) => {
-      // Generate new ID
-      const newId = `node-${Date.now()}-${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
+    if (this.clipboard.nodes) {
+      this.clipboard.nodes.forEach((copiedNode) => {
+        // Generate new ID
+        const newId = `node-${Date.now()}-${Math.random()
+          .toString(36)
+          .substr(2, 9)}`;
 
-      // Map old ID to new ID for connection mapping
-      idMap.set(copiedNode.id, newId);
+        // Map old ID to new ID for connection mapping
+        idMap.set(copiedNode.id, newId);
 
-      // Create new node with offset position
-      const newNode = {
-        ...copiedNode,
-        id: newId,
-        x: copiedNode.x + offset,
-        y: copiedNode.y + offset,
-        zIndex:
-          (this.app.diagram.nodes instanceof Map
-            ? this.app.diagram.nodes.size
-            : this.app.diagram.nodes.length) + 1,
-      };
+        // Create new node with offset position
+        const newNode = {
+          ...copiedNode,
+          id: newId,
+          x: copiedNode.x + offset,
+          y: copiedNode.y + offset,
+          zIndex:
+            (this.app.diagram.nodes instanceof Map
+              ? this.app.diagram.nodes.size
+              : this.app.diagram.nodes.length) + 1,
+        };
 
-      // Add to diagram
-      if (this.app.diagram.nodes instanceof Map) {
-        this.app.diagram.nodes.set(newId, newNode);
-      } else {
-        this.app.diagram.nodes.push(newNode);
-      }
+        // Add to diagram
+        if (this.app.diagram.nodes instanceof Map) {
+          this.app.diagram.nodes.set(newId, newNode);
+        } else {
+          this.app.diagram.nodes.push(newNode);
+        }
 
-      newNodeIds.push(newId);
+        newNodeIds.push(newId);
 
-      // Render the new node
-      this.renderNode(newNode);
+        // Render the new node
+        this.renderNode(newNode);
 
-      // Push to history
-      if (this.app.history) {
-        this.app.history.push({
-          type: "add-node",
-          nodeId: newId,
-          data: { ...newNode },
-        });
-      }
-    });
+        // Push to history
+        if (this.app.history) {
+          this.app.history.push({
+            type: "add-node",
+            nodeId: newId,
+            data: { ...newNode },
+          });
+        }
+      });
+    }
+
+    // Paste text items
+    if (this.clipboard.textItems) {
+      this.clipboard.textItems.forEach((copiedItem) => {
+        // New ID handled by createTextItem
+        const newItem = this.app.diagram.createTextItem(
+          copiedItem.x + offset,
+          copiedItem.y + offset,
+          copiedItem.text
+        );
+        // Add props that might not be in create params
+        newItem.fontSize = copiedItem.fontSize;
+        newItem.color = copiedItem.color;
+
+        this.createTextElement(newItem);
+        newTextIds.push(newItem.id);
+
+        if (this.app.history) {
+          this.app.history.push({
+            type: "add-text",
+            id: newItem.id,
+            data: { ...newItem },
+          });
+        }
+      });
+    }
 
     // Paste connections if any
     let pastedConnections = 0;
@@ -1192,16 +1268,22 @@ export class CanvasController {
       }
     });
 
+    // Select newly pasted text items
+    newTextIds.forEach((id) => {
+      this.app.selectTextItem(id, true);
+    });
+
     // Update the first pasted node in properties panel
     if (newNodeIds.length > 0) {
       this.app.selectNode(newNodeIds[0]);
     }
 
+    const totalCount = newNodeIds.length + newTextIds.length;
     console.log(
-      `Pasted ${newNodeIds.length} node(s) and ${pastedConnections} connection(s)`
+      `Pasted ${totalCount} items and ${pastedConnections} connection(s)`
     );
     if (this.app.ui && this.app.ui.showToast) {
-      this.app.ui.showToast(`Pasted ${newNodeIds.length} node(s)`, "success");
+      this.app.ui.showToast(`Pasted ${totalCount} item(s)`, "success");
     }
   }
 
@@ -1319,6 +1401,11 @@ export class CanvasController {
     const textId = element.dataset.textId;
     const canvasPos = this.screenToCanvas(e.clientX, e.clientY);
     const item = this.app.diagram.textItems.get(textId);
+
+    // Store start position for history
+    if (item) {
+      this.dragStartPos = { x: item.x, y: item.y };
+    }
 
     // Handle Selection
     const isMultiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
