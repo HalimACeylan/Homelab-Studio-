@@ -14,6 +14,7 @@ export class UIController {
     this.toastContainer = document.getElementById("toast-container");
 
     this.setupEventListeners();
+    this.setupHeaderListeners();
   }
 
   setupEventListeners() {
@@ -119,6 +120,40 @@ export class UIController {
         this.closeContextMenu();
       });
     });
+  }
+
+  setupHeaderListeners() {
+    const titleInput = document.getElementById("diagram-title");
+    if (titleInput) {
+      titleInput.addEventListener("change", (e) => {
+        this.updateDiagramName(e.target.value);
+      });
+
+      titleInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.target.blur();
+        }
+      });
+    }
+  }
+
+  updateDiagramName(newName) {
+    if (!newName || newName.trim() === "") {
+      // Revert to current name if empty
+      const titleInput = document.getElementById("diagram-title");
+      if (titleInput) {
+        titleInput.value = this.app.diagram.metadata.name;
+      }
+      return;
+    }
+
+    const name = newName.trim();
+    this.app.diagram.metadata.name = name;
+    this.app.diagram.updateModified();
+
+    // Update document title
+    document.title = `${name} - HomeLab Studio`;
+    this.showToast(`Diagram renamed to "${name}"`, "success");
   }
 
   toggleTheme() {
