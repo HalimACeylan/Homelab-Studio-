@@ -6,6 +6,7 @@
 import "./style.css";
 import "./icons.css";
 import "./nodes.css";
+import "./text-tool.css";
 import { DiagramManager } from "./modules/DiagramManager.js";
 import { CanvasController } from "./modules/CanvasController.js";
 import { PaletteController } from "./modules/PaletteController.js";

@@ -49,8 +49,18 @@
   pointer-events: none; /* specific behavior for text tool to avoid selecting nodes */
 }
 /* Text Item Selection Highlight */
+.canvas-text:hover {
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
 .canvas-text.selected {
   outline: 2px solid var(--accent-primary);
-  /* Optional: background highlight */
   background: rgba(var(--accent-primary-rgb), 0.1);
+  border: none; /* Remove hover border if selected */
+  z-index: 20; /* Ensure it's above other items */
+}
+
+/* Grabbing cursor during drag */
+.canvas-text.dragging {
+    cursor: grabbing;
 }

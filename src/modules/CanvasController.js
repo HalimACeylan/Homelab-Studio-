@@ -459,6 +459,7 @@ export class CanvasController {
     if (this.isDragging && this.draggedNode) {
       // Handle Text Items
       if (this.draggedNode.classList.contains("canvas-text")) {
+        this.draggedNode.classList.remove("dragging");
         // TODO: Add history for text move
         this.isDragging = false;
         this.draggedNode = null;
@@ -1223,8 +1224,17 @@ export class CanvasController {
 
     // Dragging logic for text
     el.addEventListener("mousedown", (e) => {
-      if (this.app.editMode === "text") return;
       e.stopPropagation();
+
+      // If in Text Mode, clicking an existing item should switch to Select Mode
+      if (this.app.editMode === "text") {
+        // Switch to select tool (simulated click on button to update UI)
+        const selectBtn = document.querySelector(
+          '.tool-btn[data-mode="select"]'
+        );
+        if (selectBtn) selectBtn.click();
+      }
+
       this.startDraggingText(el, e);
     });
 
@@ -1304,6 +1314,7 @@ export class CanvasController {
   startDraggingText(element, e) {
     this.isDragging = true;
     this.draggedNode = element;
+    element.classList.add("dragging");
 
     const textId = element.dataset.textId;
     const canvasPos = this.screenToCanvas(e.clientX, e.clientY);
