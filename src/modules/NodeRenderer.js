@@ -133,6 +133,23 @@ export class NodeRenderer {
             }</span>
             <span class="node-subtitle">${node.properties.ip || ""}</span>
           </div>
+          
+          <div class="node-actions">
+            ${
+              isHardware
+                ? `<button class="node-action-btn node-properties-btn mobile-only" 
+                          data-action="properties" 
+                          title="Properties">
+                    <div class="config-icon"></div>
+                  </button>`
+                : ""
+            }
+            <button class="node-action-btn node-delete-btn" 
+                    data-action="delete" 
+                    title="Delete">
+              <div class="trash-icon"></div>
+            </button>
+          </div>
         </div>
 
         ${

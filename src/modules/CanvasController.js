@@ -111,11 +111,28 @@ export class CanvasController {
       return;
     }
 
-    // Handle port click for connecting
-    if (portElement) {
+    // Handle node action buttons (MUST be before other node handlers)
+    const actionBtn = e.target.closest(".node-action-btn");
+    if (actionBtn) {
       e.stopPropagation();
-      const nodeId = portElement.closest(".canvas-node").dataset.nodeId;
-      this.startConnecting(nodeId, e);
+      e.preventDefault();
+
+      const nodeElement = actionBtn.closest(".canvas-node");
+      if (!nodeElement) {
+        return;
+      }
+
+      const nodeId = nodeElement.dataset.nodeId;
+      const action = actionBtn.dataset.action;
+
+      if (action === "delete") {
+        this.app.removeNode(nodeId);
+      } else if (action === "properties") {
+        const node = this.app.diagram.nodes.get(nodeId);
+        if (node && this.app.uiController) {
+          this.app.uiController.showMobilePropertiesPopup(node);
+        }
+      }
       return;
     }
 

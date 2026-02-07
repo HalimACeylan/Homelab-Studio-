@@ -121,6 +121,70 @@
   color: var(--text-tertiary);
 }
 
+/* ===================================
+   Node Action Buttons
+   =================================== */
+
+.node-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+  padding-right: 4px;
+  position: relative;
+  z-index: 10; /* Ensure above other node content */
+  pointer-events: auto;
+}
+
+.node-action-btn {
+  width: 20px;
+  height: 20px;
+  padding: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  pointer-events: auto; /* Ensure clickable */
+  position: relative;
+  z-index: 10;
+}
+
+.canvas-node:hover .node-action-btn {
+  opacity: 1;
+}
+
+.node-delete-btn:hover {
+  background: var(--accent-red);
+  color: white;
+  border-color: var(--accent-red);
+}
+
+.node-properties-btn:hover {
+  background: var(--accent-blue);
+  color: white;
+  border-color: var(--accent-blue);
+}
+
+/* Mobile enhancements */
+@media (max-width: 768px) {
+  .node-actions {
+    gap: 8px;
+  }
+  
+  .node-action-btn {
+    width: 24px;
+    height: 24px;
+    opacity: 1; /* Always visible on mobile */
+  }
+}
+
 .node-status {
   width: 10px;
   height: 10px;
@@ -479,6 +543,64 @@
   top: 0;
   right: 0;
   margin-left: auto;
+}
+
+/* Config Button for Mobile */
+.node-item-config {
+  position: absolute;
+  top: 2px;
+  right: 22px; /* Position next to delete button */
+  width: 16px;
+  height: 16px;
+  padding: 2px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  z-index: 10;
+}
+
+.node-app-item:hover .node-item-config,
+.os-env-header:hover .node-item-config {
+  opacity: 1;
+}
+
+.node-item-config:hover {
+  background: var(--accent-blue);
+  color: white;
+  border-color: var(--accent-blue);
+}
+
+.os-env-header .node-item-config {
+  position: relative;
+  top: 0;
+  right: 0;
+  margin-left: 4px;
+}
+
+/* Mobile only visibility */
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: flex !important;
+  }
+  
+  /* Make buttons visible on mobile always */
+  .node-app-item .node-item-delete,
+  .node-app-item .node-item-config,
+  .os-env-header .node-item-delete,
+  .os-env-header .node-item-config {
+    opacity: 1;
+  }
 }
 
 /* ===================================
