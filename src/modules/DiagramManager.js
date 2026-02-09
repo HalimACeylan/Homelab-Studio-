@@ -238,21 +238,17 @@ export class DiagramManager {
         const endX = targetNode.x;
         const endY = targetNode.y + targetNode.height / 2;
 
-        // Create 5 waypoints along the straight line (including endpoints)
+        // Create 4 waypoints along the straight line (no center dot - label will go there)
         waypoints = [
           { x: startX, y: startY }, // 0% - Start (at source node)
           {
-            x: startX + (endX - startX) * 0.25,
-            y: startY + (endY - startY) * 0.25,
-          }, // 25%
+            x: startX + (endX - startX) * 0.33,
+            y: startY + (endY - startY) * 0.33,
+          }, // 33%
           {
-            x: startX + (endX - startX) * 0.5,
-            y: startY + (endY - startY) * 0.5,
-          }, // 50% - Middle
-          {
-            x: startX + (endX - startX) * 0.75,
-            y: startY + (endY - startY) * 0.75,
-          }, // 75%
+            x: startX + (endX - startX) * 0.67,
+            y: startY + (endY - startY) * 0.67,
+          }, // 67%
           { x: endX, y: endY }, // 100% - End (at target node)
         ];
       } else {

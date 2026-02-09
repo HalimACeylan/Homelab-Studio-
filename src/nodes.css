@@ -30,7 +30,7 @@
 .canvas-node {
   position: absolute;
   background: var(--bg-secondary);
-  border: 2px solid var(--border-primary);
+  border: 3px solid rgba(255, 255, 255, 0.15); /* More visible border */
   border-radius: var(--radius-lg);
   cursor: move;
   user-select: none;

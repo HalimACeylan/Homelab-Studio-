@@ -156,25 +156,21 @@ export class ConnectionManager {
 
     if (!sourceNode || !targetNode) return null;
 
-    const midX = (endpoints.source.x + endpoints.target.x) / 2;
-    const midY = (endpoints.source.y + endpoints.target.y) / 2;
-
-    // Check if either node is a user device
-    const isUserDevice =
-      sourceNode.category === "user-device" ||
-      targetNode.category === "user-device";
-
-    // Build label text
-    const sourceName =
-      sourceNode.properties.name || sourceNode.type || "Unknown";
-    const targetName =
-      targetNode.properties.name || targetNode.type || "Unknown";
-    const bandwidth = connection.properties.bandwidth || "1000";
-    const bandwidthUnit = connection.properties.bandwidthUnit || "Mbit";
-    const connectionName = connection.properties.name;
     const connectionType =
       CONNECTION_TYPES[connection.type] || CONNECTION_TYPES.ethernet;
-    const connectionTypeName = connectionType.name;
+
+    // Calculate center position from waypoints or endpoints
+    let midX, midY;
+    if (connection.waypoints && connection.waypoints.length >= 4) {
+      // Use center of connection (between waypoint 1 and 3)
+      const wp1 = connection.waypoints[1];
+      const wp3 = connection.waypoints[3];
+      midX = (wp1.x + wp3.x) / 2;
+      midY = (wp1.y + wp3.y) / 2;
+    } else {
+      midX = (endpoints.source.x + endpoints.target.x) / 2;
+      midY = (endpoints.source.y + endpoints.target.y) / 2;
+    }
 
     // Create a group for the label
     const labelGroup = document.createElementNS(
@@ -182,6 +178,7 @@ export class ConnectionManager {
       "g"
     );
     labelGroup.classList.add("connection-label-group");
+    labelGroup.dataset.connectionId = connection.id;
 
     // Background rectangle for better readability
     const bgRect = document.createElementNS(
@@ -201,73 +198,14 @@ export class ConnectionManager {
     labelText.setAttribute("text-anchor", "middle");
     labelText.setAttribute("dominant-baseline", "middle");
 
-    if (isUserDevice) {
-      // Simplified label for user devices (Bandwidth only)
-      const bandwidthTspan = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "tspan"
-      );
-      bandwidthTspan.setAttribute("x", midX);
-      bandwidthTspan.setAttribute("dy", 0); // Center vertically
-      bandwidthTspan.textContent = `${bandwidth} ${bandwidthUnit}`;
-      bandwidthTspan.style.fontSize = "10px";
-      bandwidthTspan.style.fontWeight = "600";
-      bandwidthTspan.style.opacity = "0.9";
-      labelText.appendChild(bandwidthTspan);
-    } else {
-      // Full detailed label for infrastructure
-      let yOffset = connectionName ? -17 : -10;
-
-      // Connection name (if exists)
-      if (connectionName) {
-        const nameTspan = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "tspan"
-        );
-        nameTspan.setAttribute("x", midX);
-        nameTspan.setAttribute("dy", yOffset);
-        nameTspan.textContent = connectionName;
-        nameTspan.style.fontWeight = "600";
-        labelText.appendChild(nameTspan);
-        yOffset = 14;
-      }
-
-      // Node names
-      const nodesTspan = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "tspan"
-      );
-      nodesTspan.setAttribute("x", midX);
-      nodesTspan.setAttribute("dy", yOffset);
-      nodesTspan.textContent = `${sourceName} → ${targetName}`;
-      nodesTspan.style.fontSize = "11px";
-      labelText.appendChild(nodesTspan);
-
-      // Connection Type
-      const typeTspan = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "tspan"
-      );
-      typeTspan.setAttribute("x", midX);
-      typeTspan.setAttribute("dy", 14);
-      typeTspan.textContent = connectionTypeName;
-      typeTspan.style.fontSize = "10px";
-      typeTspan.style.opacity = "0.7";
-      typeTspan.style.fontStyle = "italic";
-      labelText.appendChild(typeTspan);
-
-      // Bandwidth
-      const bandwidthTspan = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "tspan"
-      );
-      bandwidthTspan.setAttribute("x", midX);
-      bandwidthTspan.setAttribute("dy", 14);
-      bandwidthTspan.textContent = `${bandwidth} ${bandwidthUnit}`;
-      bandwidthTspan.style.fontSize = "10px";
-      bandwidthTspan.style.opacity = "0.8";
-      labelText.appendChild(bandwidthTspan);
-    }
+    // Only show bandwidth (no node names)
+    const bandwidth =
+      connection.properties?.bandwidth || connectionType.bandwidth || "1000";
+    const bandwidthUnit =
+      connection.properties?.bandwidthUnit ||
+      connectionType.bandwidthUnit ||
+      "Mbit";
+    labelText.textContent = `${bandwidth} ${bandwidthUnit}`;
 
     // Calculate background size based on text
     labelGroup.appendChild(labelText);
@@ -428,6 +366,13 @@ export class ConnectionManager {
           connection.sourceAnchor = anchor;
           const pos = this.getAnchorPosition(sourceNode, anchor);
           connection.waypoints[waypointIndex] = { x: pos.x, y: pos.y };
+
+          // Update circle positions
+          const circles = cpGroup.querySelectorAll("circle");
+          circles.forEach((circle) => {
+            circle.setAttribute("cx", pos.x);
+            circle.setAttribute("cy", pos.y);
+          });
         }
       } else if (waypointIndex === connection.waypoints.length - 1) {
         // End point - constrain to target node
@@ -437,6 +382,13 @@ export class ConnectionManager {
           connection.targetAnchor = anchor;
           const pos = this.getAnchorPosition(targetNode, anchor);
           connection.waypoints[waypointIndex] = { x: pos.x, y: pos.y };
+
+          // Update circle positions
+          const circles = cpGroup.querySelectorAll("circle");
+          circles.forEach((circle) => {
+            circle.setAttribute("cx", pos.x);
+            circle.setAttribute("cy", pos.y);
+          });
         }
       } else {
         // Middle waypoints - free movement
@@ -446,9 +398,37 @@ export class ConnectionManager {
         startY = e.clientY;
         connection.waypoints[waypointIndex].x += dx;
         connection.waypoints[waypointIndex].y += dy;
+
+        // Update circle positions
+        const circles = cpGroup.querySelectorAll("circle");
+        circles.forEach((circle) => {
+          circle.setAttribute("cx", connection.waypoints[waypointIndex].x);
+          circle.setAttribute("cy", connection.waypoints[waypointIndex].y);
+        });
       }
 
-      this.updateConnection(connectionId);
+      // Only update the path during drag, don't recreate control points
+      const group = this.connectionsLayer.querySelector(
+        `g.connection-group[data-connection-id="${connectionId}"]`
+      );
+      if (group) {
+        const endpoints = this.app.diagram.getConnectionEndpoints(
+          connectionId,
+          5
+        );
+        if (endpoints) {
+          const paths = group.querySelectorAll("path");
+          const pathData = this.calculatePath(
+            endpoints.source,
+            endpoints.target,
+            connection.waypoints
+          );
+          paths.forEach((p) => p.setAttribute("d", pathData));
+
+          // Update label position
+          this.updateConnectionLabel(connectionId);
+        }
+      }
     };
 
     const handleMouseUp = (e) => {
@@ -525,32 +505,35 @@ export class ConnectionManager {
       offset = Math.max(0, Math.min(1, (x - node.x) / node.width));
     }
 
+    console.log("Anchor calc:", { side, offset, angle, absAngle });
+
     return { side, offset };
   }
 
   getAnchorPosition(node, anchor) {
     const { side, offset } = anchor;
+    const padding = 5; // 5px inside the border for better UI
     let x, y;
 
     switch (side) {
       case "right":
-        x = node.x + node.width;
-        y = node.y + offset * node.height;
+        x = node.x + node.width - padding;
+        y = node.y + padding + offset * (node.height - 2 * padding);
         break;
       case "left":
-        x = node.x;
-        y = node.y + offset * node.height;
+        x = node.x + padding;
+        y = node.y + padding + offset * (node.height - 2 * padding);
         break;
       case "top":
-        x = node.x + offset * node.width;
-        y = node.y;
+        x = node.x + padding + offset * (node.width - 2 * padding);
+        y = node.y + padding;
         break;
       case "bottom":
-        x = node.x + offset * node.width;
-        y = node.y + node.height;
+        x = node.x + padding + offset * (node.width - 2 * padding);
+        y = node.y + node.height - padding;
         break;
       default:
-        x = node.x + node.width;
+        x = node.x + node.width - padding;
         y = node.y + node.height / 2;
     }
 
@@ -596,7 +579,7 @@ export class ConnectionManager {
 
     // Always update start/end waypoints based on anchor positions
     // (they should always stick to nodes)
-    if (connection.waypoints && connection.waypoints.length === 5) {
+    if (connection.waypoints && connection.waypoints.length === 4) {
       const sourceNode = this.app.diagram.nodes.get(connection.sourceId);
       const targetNode = this.app.diagram.nodes.get(connection.targetId);
 
@@ -612,7 +595,7 @@ export class ConnectionManager {
         );
 
         connection.waypoints[0] = { x: startPos.x, y: startPos.y };
-        connection.waypoints[4] = { x: endPos.x, y: endPos.y };
+        connection.waypoints[3] = { x: endPos.x, y: endPos.y };
 
         // Only update middle waypoints if not locked
         if (!connection.waypointsLocked) {
@@ -622,16 +605,12 @@ export class ConnectionManager {
           const endY = endPos.y;
 
           connection.waypoints[1] = {
-            x: startX + (endX - startX) * 0.25,
-            y: startY + (endY - startY) * 0.25,
+            x: startX + (endX - startX) * 0.33,
+            y: startY + (endY - startY) * 0.33,
           };
           connection.waypoints[2] = {
-            x: startX + (endX - startX) * 0.5,
-            y: startY + (endY - startY) * 0.5,
-          };
-          connection.waypoints[3] = {
-            x: startX + (endX - startX) * 0.75,
-            y: startY + (endY - startY) * 0.75,
+            x: startX + (endX - startX) * 0.67,
+            y: startY + (endY - startY) * 0.67,
           };
         }
       }
