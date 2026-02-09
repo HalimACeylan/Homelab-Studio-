@@ -256,6 +256,34 @@ export class DiagramManager {
       }
     }
 
+    // Calculate unique anchor positions to avoid overlapping connections
+    // Count existing connections from source and to target
+    const sourceConnections = Array.from(this.connections.values()).filter(
+      (c) => c.sourceId === sourceId
+    );
+    const targetConnections = Array.from(this.connections.values()).filter(
+      (c) => c.targetId === targetId
+    );
+
+    // Distribute connections evenly along the edge
+    const sourceCount = sourceConnections.length + 1; // +1 for the new connection
+    const targetCount = targetConnections.length + 1;
+
+    // Calculate offset for this connection (evenly distributed)
+    const sourceOffset = sourceConnections.length / sourceCount;
+    const targetOffset = targetConnections.length / targetCount;
+
+    // Initialize anchor points with unique positions
+    const sourceAnchor = properties.sourceAnchor || {
+      side: "right",
+      offset: Math.max(0.1, Math.min(0.9, sourceOffset)), // Keep within 10-90% range
+    };
+
+    const targetAnchor = properties.targetAnchor || {
+      side: "left",
+      offset: Math.max(0.1, Math.min(0.9, targetOffset)),
+    };
+
     const connection = {
       id,
       sourceId,
@@ -263,8 +291,8 @@ export class DiagramManager {
       type: properties.type || "ethernet",
       waypoints: waypoints,
       waypointsLocked: false, // True if user has manually adjusted waypoints
-      sourceAnchor: properties.sourceAnchor || { side: "right", offset: 0.5 }, // Attachment point on source
-      targetAnchor: properties.targetAnchor || { side: "left", offset: 0.5 }, // Attachment point on target
+      sourceAnchor, // Attachment point on source
+      targetAnchor, // Attachment point on target
       properties: {
         ...properties,
       },

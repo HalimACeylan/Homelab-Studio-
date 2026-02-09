@@ -1056,13 +1056,10 @@
    =================================== */
 
 .connection-delete-btn {
+  display: none; /* Hidden on desktop */
   opacity: 0;
   transition: opacity var(--transition-fast);
   pointer-events: auto;
-}
-
-.connection-group:hover .connection-delete-btn {
-  opacity: 1;
 }
 
 .delete-btn-bg {
@@ -1077,9 +1074,10 @@
   stroke: var(--accent-red);
 }
 
-/* Mobile: Always visible, larger touch target */
+/* Mobile: Show delete button with larger touch target */
 @media (max-width: 768px) {
   .connection-delete-btn {
+    display: block; /* Show on mobile */
     opacity: 1;
   }
   
@@ -1101,6 +1099,11 @@
   opacity: 1; /* Always visible for now */
   transition: opacity var(--transition-fast);
   pointer-events: auto;
+  cursor: grab;
+}
+
+.connection-control-point.dragging {
+  cursor: grabbing;
 }
 
 /* Will add hover effect later */
@@ -1132,22 +1135,24 @@
 .connection-control-point:hover .control-point-outer {
   fill: var(--accent-blue);
   stroke: var(--accent-blue);
-  r: 8;
+  r: 12; /* Even larger on hover */
 }
 
 .connection-control-point:hover .control-point-inner {
   fill: white;
+  r: 6;
 }
 
 .connection-control-point.dragging .control-point-outer {
   fill: var(--accent-blue);
   stroke: var(--accent-blue);
-  r: 8;
+  r: 12;
   opacity: 0.8;
 }
 
 .connection-control-point.dragging .control-point-inner {
   fill: white;
+  r: 6;
 }
 
 /* Mobile: Always visible, larger touch targets */

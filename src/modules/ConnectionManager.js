@@ -159,15 +159,24 @@ export class ConnectionManager {
     const connectionType =
       CONNECTION_TYPES[connection.type] || CONNECTION_TYPES.ethernet;
 
-    // Calculate center position from waypoints or endpoints
+    // Calculate center position - always stay on the connection line
     let midX, midY;
-    if (connection.waypoints && connection.waypoints.length >= 4) {
-      // Use center of connection (between waypoint 1 and 3)
-      const wp1 = connection.waypoints[1];
-      const wp3 = connection.waypoints[3];
-      midX = (wp1.x + wp3.x) / 2;
-      midY = (wp1.y + wp3.y) / 2;
+    if (connection.waypoints && connection.waypoints.length >= 2) {
+      // For 4 waypoints: use midpoint between waypoint 1 and 2 (center of connection)
+      // This ensures label stays on the straight line
+      const totalPoints = connection.waypoints.length;
+      if (totalPoints === 4) {
+        // Between second and third waypoint (indices 1 and 2)
+        midX = (connection.waypoints[1].x + connection.waypoints[2].x) / 2;
+        midY = (connection.waypoints[1].y + connection.waypoints[2].y) / 2;
+      } else {
+        // Fallback: use middle waypoint or average
+        const midIndex = Math.floor(totalPoints / 2);
+        midX = connection.waypoints[midIndex].x;
+        midY = connection.waypoints[midIndex].y;
+      }
     } else {
+      // No waypoints, use midpoint between endpoints
       midX = (endpoints.source.x + endpoints.target.x) / 2;
       midY = (endpoints.source.y + endpoints.target.y) / 2;
     }
@@ -307,7 +316,7 @@ export class ConnectionManager {
     );
     outerCircle.setAttribute("cx", x);
     outerCircle.setAttribute("cy", y);
-    outerCircle.setAttribute("r", "6");
+    outerCircle.setAttribute("r", "10"); // Increased from 6 to 10
     outerCircle.classList.add("control-point-outer");
 
     // Inner circle (visual dot) - color based on type
@@ -317,7 +326,7 @@ export class ConnectionManager {
     );
     innerCircle.setAttribute("cx", x);
     innerCircle.setAttribute("cy", y);
-    innerCircle.setAttribute("r", "3");
+    innerCircle.setAttribute("r", "5"); // Increased from 3 to 5
     innerCircle.classList.add("control-point-inner");
 
     // Add type-specific class for coloring
