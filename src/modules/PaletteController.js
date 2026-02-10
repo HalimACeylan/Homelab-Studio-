@@ -1,4 +1,9 @@
-import { OS_TYPES, APPLICATION_TYPES, NODE_TYPES } from "./nodeTypes.js";
+import {
+  OS_TYPES,
+  APPLICATION_TYPES,
+  NODE_TYPES,
+  LLM_TYPES,
+} from "./nodeTypes.js";
 
 export class PaletteController {
   constructor(app) {
@@ -112,10 +117,10 @@ export class PaletteController {
     );
     if (localLlmSection) {
       localLlmSection.innerHTML = "";
-      Object.entries(APPLICATION_TYPES).forEach(([type, config]) => {
-        if (config.category === "local_llm") {
-          localLlmSection.appendChild(createItem(type, config, "local_llm"));
-        }
+      Object.entries(LLM_TYPES).forEach(([type, config]) => {
+        // Determine appropriate category for drag/drop handling
+        const category = config.category || "application";
+        localLlmSection.appendChild(createItem(type, config, category));
       });
     }
 
@@ -522,7 +527,13 @@ export class PaletteController {
     }
 
     // Check if dropping application or OS onto hardware node
-    if (category === "application" || category === "os") {
+    // Treat local_llm and v-os categories as applications
+    if (
+      category === "application" ||
+      category === "local_llm" ||
+      category === "v-os" ||
+      category === "os"
+    ) {
       const nodeElement = e.target.closest(".canvas-node.hardware-node");
       if (nodeElement) {
         const nodeId = nodeElement.dataset.nodeId;
@@ -607,37 +618,124 @@ export class PaletteController {
         // Create a server hardware node
         const hardwareNode = this.app.addNode("server", x, y);
 
-        if (category === "application") {
-          // Create Ubuntu OS environment first
-          const ubuntuSuccess = this.app.diagram.addOSEnvironment(
-            hardwareNode.id,
-            "Ubuntu",
-            "ubuntu",
-            null
-          );
+        if (
+          category === "application" ||
+          category === "local_llm" ||
+          category === "v-os"
+        ) {
+          // Check if this application is a v-os (like Docker or Ollama)
+          const appInfo = APPLICATION_TYPES[type] || LLM_TYPES[type];
+          const isVOS = appInfo && appInfo.category === "v-os";
 
-          if (ubuntuSuccess) {
-            // Find the Ubuntu environment we just created
-            const node = this.app.diagram.nodes.get(hardwareNode.id);
-            const ubuntuEnv = node.osEnvironments?.find(
-              (env) => env.typeId === "ubuntu"
+          if (isVOS) {
+            // Special handling for v-os apps (Docker, Ollama)
+            // Create Ubuntu OS environment first
+            const ubuntuSuccess = this.app.diagram.addOSEnvironment(
+              hardwareNode.id,
+              "Ubuntu",
+              "ubuntu",
+              null
             );
 
-            if (ubuntuEnv) {
-              // Add the application to the Ubuntu environment
-              const appSuccess = this.app.diagram.addApplicationToNode(
-                hardwareNode.id,
-                type,
-                ubuntuEnv.id
+            if (ubuntuSuccess) {
+              const node = this.app.diagram.nodes.get(hardwareNode.id);
+              const ubuntuEnv = node.osEnvironments?.find(
+                (env) => env.typeId === "ubuntu"
               );
 
-              if (appSuccess) {
-                this.app.nodeRenderer.updateNodeElement(hardwareNode.id, node);
-                this.app.selectNode(hardwareNode.id);
-                this.app.ui.showToast(
-                  `Created server with Ubuntu and ${type}`,
-                  "success"
+              if (ubuntuEnv) {
+                // Add the v-os environment (like Ollama) inside Ubuntu
+                const vosSuccess = this.app.diagram.addOSEnvironment(
+                  hardwareNode.id,
+                  appInfo.name,
+                  type,
+                  ubuntuEnv.id
                 );
+
+                if (vosSuccess) {
+                  // Special case for Ollama - add a model-name inside it
+                  if (type === "ollama") {
+                    const ollamaEnv = this.app.diagram.findOSEnvironment(
+                      node.osEnvironments,
+                      null
+                    );
+                    // Find the Ollama environment we just created
+                    const findOllama = (envs) => {
+                      for (const env of envs) {
+                        if (env.typeId === "ollama") return env;
+                        if (env.osEnvironments) {
+                          const found = findOllama(env.osEnvironments);
+                          if (found) return found;
+                        }
+                      }
+                      return null;
+                    };
+                    const refreshedNode = this.app.diagram.nodes.get(
+                      hardwareNode.id
+                    );
+                    const ollamaEnvironment = findOllama(
+                      refreshedNode.osEnvironments || []
+                    );
+
+                    if (ollamaEnvironment) {
+                      this.app.diagram.addApplicationToNode(
+                        hardwareNode.id,
+                        "model-name",
+                        ollamaEnvironment.id
+                      );
+                    }
+                  }
+
+                  const finalNode = this.app.diagram.nodes.get(hardwareNode.id);
+                  this.app.nodeRenderer.updateNodeElement(
+                    hardwareNode.id,
+                    finalNode
+                  );
+                  this.app.selectNode(hardwareNode.id);
+                  this.app.ui.showToast(
+                    `Created server with Ubuntu and ${appInfo.name}${
+                      type === "ollama" ? " + Model" : ""
+                    }`,
+                    "success"
+                  );
+                }
+              }
+            }
+          } else {
+            // Regular application - create Ubuntu and add app inside
+            const ubuntuSuccess = this.app.diagram.addOSEnvironment(
+              hardwareNode.id,
+              "Ubuntu",
+              "ubuntu",
+              null
+            );
+
+            if (ubuntuSuccess) {
+              // Find the Ubuntu environment we just created
+              const node = this.app.diagram.nodes.get(hardwareNode.id);
+              const ubuntuEnv = node.osEnvironments?.find(
+                (env) => env.typeId === "ubuntu"
+              );
+
+              if (ubuntuEnv) {
+                // Add the application to the Ubuntu environment
+                const appSuccess = this.app.diagram.addApplicationToNode(
+                  hardwareNode.id,
+                  type,
+                  ubuntuEnv.id
+                );
+
+                if (appSuccess) {
+                  this.app.nodeRenderer.updateNodeElement(
+                    hardwareNode.id,
+                    node
+                  );
+                  this.app.selectNode(hardwareNode.id);
+                  this.app.ui.showToast(
+                    `Created server with Ubuntu and ${type}`,
+                    "success"
+                  );
+                }
               }
             }
           }

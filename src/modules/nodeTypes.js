@@ -390,11 +390,44 @@ export const APPLICATION_TYPES = {
     description: "Synology Docker Management",
   },
 
-  // --- AI & Productivity ---
+  obsidian: {
+    name: "Obsidian",
+    icon: "obsidian",
+    color: "#7c3aed",
+    description: "Knowledge base",
+  },
+  "paperless-ngx": {
+    name: "Paperless-ngx",
+    icon: "paperless-ngx",
+    color: "#2a52be",
+    description: "Document management system",
+  },
+
+  // --- Automation ---
+  "node-red": {
+    name: "Node-RED",
+    icon: "node-red",
+    color: "#8f0000",
+    description: "Flow-based programming tool",
+  },
+};
+
+// LLM Types - Local Large Language Model applications
+export const LLM_TYPES = {
+  // --- LLM Container/Environment ---
   ollama: {
     name: "Ollama",
     icon: "ollama",
     description: "Get up and running with large language models",
+    category: "v-os", // Works like Docker - can contain models
+  },
+
+  // --- LLM Applications & Models ---
+  "model-name": {
+    name: "Model Name",
+    icon: "service",
+    color: "#8b5cf6",
+    description: "LLM Model Instance",
     category: "local_llm",
   },
   "open-webui": {
@@ -405,7 +438,7 @@ export const APPLICATION_TYPES = {
     category: "local_llm",
   },
 
-  // --- Local LLM Runners ---
+  // --- LLM Runners & Frameworks ---
   "llama-cpp": {
     name: "Llama.cpp",
     icon: "llama",
@@ -475,27 +508,6 @@ export const APPLICATION_TYPES = {
     color: "#8b5cf6",
     category: "local_llm",
     description: "All-in-one desktop AI application",
-  },
-
-  obsidian: {
-    name: "Obsidian",
-    icon: "obsidian",
-    color: "#7c3aed",
-    description: "Knowledge base",
-  },
-  "paperless-ngx": {
-    name: "Paperless-ngx",
-    icon: "paperless-ngx",
-    color: "#2a52be",
-    description: "Document management system",
-  },
-
-  // --- Automation ---
-  "node-red": {
-    name: "Node-RED",
-    icon: "node-red",
-    color: "#8f0000",
-    description: "Flow-based programming tool",
   },
 };
 
