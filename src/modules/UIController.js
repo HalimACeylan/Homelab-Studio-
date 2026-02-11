@@ -3,6 +3,7 @@
  */
 
 import { downloadFile } from "./utils.js";
+import html2canvas from "html2canvas";
 
 export class UIController {
   constructor(app) {
@@ -711,562 +712,390 @@ export class UIController {
     this.showToast("Preparing export...", "info");
 
     try {
-      // Get the canvas wrapper
       const wrapper = document.getElementById("canvas-wrapper");
       if (!wrapper) {
         this.showToast("Canvas not found", "error");
         return;
       }
 
-      // Calculate bounds including groups
-      let minX = Infinity,
-        minY = Infinity;
-      let maxX = -Infinity,
-        maxY = -Infinity;
-
-      // Check nodes
-      this.app.diagram.nodes.forEach((node) => {
-        const h =
-          node.expanded && node.category === "hardware" ? 350 : node.height;
-        minX = Math.min(minX, node.x);
-        minY = Math.min(minY, node.y);
-        maxX = Math.max(maxX, node.x + node.width);
-        maxY = Math.max(maxY, node.y + h);
-      });
-
-      // Check groups
-      this.app.diagram.groups.forEach((group) => {
-        const bounds = this.app.canvas.getGroupBounds(group);
-        if (bounds) {
-          minX = Math.min(minX, bounds.x);
-          minY = Math.min(minY, bounds.y);
-          maxX = Math.max(maxX, bounds.x + bounds.width);
-          maxY = Math.max(maxY, bounds.y + bounds.height);
-        }
-      });
-
-      if (minX === Infinity) {
+      const bounds = this.getExportBounds();
+      if (!bounds) {
         this.showToast("Nothing to export", "warning");
         return;
       }
 
       const padding = 50;
-      const width = maxX - minX + padding * 2;
-      const height = maxY - minY + padding * 2;
+      const width = Math.ceil(bounds.maxX - bounds.minX + padding * 2);
+      const height = Math.ceil(bounds.maxY - bounds.minY + padding * 2);
+      const offsetX = padding - bounds.minX;
+      const offsetY = padding - bounds.minY;
 
-      // Create an SVG element
-      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.setAttribute("width", width);
-      svg.setAttribute("height", height);
-      svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-
-      // Add background
-      const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-      bg.setAttribute("width", width);
-      bg.setAttribute("height", height);
-      bg.setAttribute("fill", "#0d1117");
-      svg.appendChild(bg);
-
-      // Create defs for markers
-      const defs = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "defs"
+      const exportRoot = document.createElementNS(
+        "http://www.w3.org/1999/xhtml",
+        "div"
+      );
+      exportRoot.setAttribute(
+        "data-theme",
+        document.documentElement.getAttribute("data-theme") || "dark"
+      );
+      exportRoot.className = "canvas-container";
+      exportRoot.style.width = `${width}px`;
+      exportRoot.style.height = `${height}px`;
+      exportRoot.style.position = "relative";
+      exportRoot.style.overflow = "hidden";
+      exportRoot.style.fontFamily =
+        "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
+      exportRoot.style.setProperty(
+        "--font-sans",
+        "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+      );
+      exportRoot.style.setProperty(
+        "--font-mono",
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace"
       );
 
-      // Add arrow markers for each connection type
-      const connectionTypes = ["ethernet", "wireless", "fiber", "usb"];
-      connectionTypes.forEach((type) => {
-        const marker = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "marker"
+      const canvasContainer = document.getElementById("canvas-container");
+      if (canvasContainer) {
+        const containerStyles = getComputedStyle(canvasContainer);
+        exportRoot.style.backgroundColor = containerStyles.backgroundColor;
+        exportRoot.style.backgroundImage = containerStyles.backgroundImage;
+        exportRoot.style.backgroundSize = containerStyles.backgroundSize;
+        exportRoot.style.backgroundPosition = containerStyles.backgroundPosition;
+      }
+
+      const styleEl = document.createElement("style");
+      styleEl.textContent = await this.collectExportStyles();
+      exportRoot.appendChild(styleEl);
+
+      const clone = wrapper.cloneNode(true);
+      clone.removeAttribute("id");
+      clone.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(1)`;
+      clone.style.transformOrigin = "top left";
+      clone.style.width = `${width}px`;
+      clone.style.height = `${height}px`;
+      clone.style.cursor = "default";
+
+      clone.querySelector("#canvas-overlay")?.remove();
+      clone.querySelectorAll(".connection-temp").forEach((el) => el.remove());
+      clone
+        .querySelectorAll(
+          ".selected, .connecting-source, .drop-target, .dragging, .resizing"
+        )
+        .forEach((el) =>
+          el.classList.remove(
+            "selected",
+            "connecting-source",
+            "drop-target",
+            "dragging",
+            "resizing"
+          )
         );
-        marker.setAttribute("id", `arrow-${type}-export`);
-        marker.setAttribute("markerWidth", "10");
-        marker.setAttribute("markerHeight", "10");
-        marker.setAttribute("refX", "9");
-        marker.setAttribute("refY", "3");
-        marker.setAttribute("orient", "auto");
-        marker.setAttribute("markerUnits", "strokeWidth");
 
-        const path = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "path"
-        );
-        path.setAttribute("d", "M0,0 L0,6 L9,3 z");
+      this.prepareExportClone(clone);
+      exportRoot.appendChild(clone);
 
-        // Set color based on type
-        const colors = {
-          ethernet: "#58a6ff",
-          wireless: "#a371f7",
-          fiber: "#3fb950",
-          usb: "#f85149",
-        };
-        path.setAttribute("fill", colors[type] || "#58a6ff");
-        marker.appendChild(path);
-        defs.appendChild(marker);
-      });
-      svg.appendChild(defs);
+      await this.inlineElementImages(exportRoot);
 
-      // Draw groups
-      this.app.diagram.groups.forEach((group) => {
-        const bounds = this.app.canvas.getGroupBounds(group);
-        if (bounds) {
-          const x = bounds.x - minX + padding;
-          const y = bounds.y - minY + padding;
+      const staging = document.createElement("div");
+      staging.style.position = "fixed";
+      staging.style.left = "-100000px";
+      staging.style.top = "-100000px";
+      staging.style.width = "1px";
+      staging.style.height = "1px";
+      staging.style.overflow = "hidden";
+      document.body.appendChild(staging);
+      staging.appendChild(exportRoot);
 
-          // Group rectangle
-          const rect = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "rect"
-          );
-          rect.setAttribute("x", x);
-          rect.setAttribute("y", y);
-          rect.setAttribute("width", bounds.width);
-          rect.setAttribute("height", bounds.height);
-          rect.setAttribute("fill", "none");
-          rect.setAttribute("stroke", group.color || "#58a6ff");
-          rect.setAttribute("stroke-width", "2");
-          rect.setAttribute("stroke-dasharray", "5,5");
-          rect.setAttribute("rx", "8");
-          svg.appendChild(rect);
-
-          // Group label
-          const text = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text"
-          );
-          text.setAttribute("x", x + 10);
-          text.setAttribute("y", y - 5);
-          text.setAttribute("fill", group.color || "#58a6ff");
-          text.setAttribute("font-size", "12");
-          text.setAttribute("font-weight", "600");
-          text.setAttribute("font-family", "Inter, sans-serif");
-          text.textContent = group.name;
-          svg.appendChild(text);
-        }
+      const canvas = await html2canvas(exportRoot, {
+        backgroundColor: null,
+        useCORS: true,
+        allowTaint: false,
+        scale: window.devicePixelRatio || 1,
+        logging: false,
       });
 
-      // Draw connections
-      this.app.diagram.connections.forEach((connection) => {
-        const endpoints = this.app.diagram.getConnectionEndpoints(
-          connection.id
-        );
-        if (endpoints) {
-          const path = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "path"
-          );
+      staging.remove();
 
-          const sx = endpoints.source.x - minX + padding;
-          const sy = endpoints.source.y - minY + padding;
-          const tx = endpoints.target.x - minX + padding;
-          const ty = endpoints.target.y - minY + padding;
-
-          // Calculate straight line
-          const pathData = `M ${sx} ${sy} L ${tx} ${ty}`;
-          path.setAttribute("d", pathData);
-          path.setAttribute("fill", "none");
-          path.setAttribute("stroke-width", "2");
-          path.setAttribute(
-            "marker-end",
-            `url(#arrow-${connection.type}-export)`
-          );
-
-          // Set stroke style based on type
-          const styles = {
-            ethernet: { stroke: "#58a6ff", dasharray: "" },
-            wireless: { stroke: "#a371f7", dasharray: "5,5" },
-            fiber: { stroke: "#3fb950", dasharray: "" },
-            usb: { stroke: "#f85149", dasharray: "" },
-          };
-          const style = styles[connection.type] || styles.ethernet;
-          path.setAttribute("stroke", style.stroke);
-          if (style.dasharray) {
-            path.setAttribute("stroke-dasharray", style.dasharray);
-          }
-
-          svg.appendChild(path);
-
-          // Draw Label
-          const midX = (sx + tx) / 2;
-          const midY = (sy + ty) / 2;
-          const sourceNode = this.app.diagram.nodes.get(connection.sourceId);
-          const targetNode = this.app.diagram.nodes.get(connection.targetId);
-
-          if (sourceNode && targetNode) {
-            const isUserDevice =
-              sourceNode.category === "user-device" ||
-              targetNode.category === "user-device";
-
-            const bandwidth = connection.properties.bandwidth || "1000";
-            const bandwidthUnit = connection.properties.bandwidthUnit || "Mbit";
-
-            // Label Group
-            const labelGroup = document.createElementNS(
-              "http://www.w3.org/2000/svg",
-              "g"
-            );
-
-            // Background Rect
-            const bgRect = document.createElementNS(
-              "http://www.w3.org/2000/svg",
-              "rect"
-            );
-            bgRect.setAttribute("fill", "#0d1117"); // Match background color for overlay effect
-            bgRect.setAttribute("rx", "3");
-
-            // Label Text
-            const text = document.createElementNS(
-              "http://www.w3.org/2000/svg",
-              "text"
-            );
-            text.setAttribute("x", midX);
-            text.setAttribute("y", midY);
-            text.setAttribute("text-anchor", "middle");
-            text.setAttribute("dominant-baseline", "middle");
-            text.setAttribute("font-family", "Inter, sans-serif");
-            text.setAttribute("fill", "var(--text-primary)"); // Will fail in export, hardcode color
-            text.setAttribute("fill", "#f0f6fc");
-
-            if (isUserDevice) {
-              // Simplified Label
-              text.textContent = `${bandwidth} ${bandwidthUnit}`;
-              text.setAttribute("font-size", "10");
-              text.setAttribute("font-weight", "600");
-
-              // Approx bg size
-              bgRect.setAttribute("x", midX - 30);
-              bgRect.setAttribute("y", midY - 10);
-              bgRect.setAttribute("width", 60);
-              bgRect.setAttribute("height", 20);
-            } else {
-              // Full Label logic omitted for brevity in SVG export usually, but let's try to match editor
-              // For simplicity in export, let's just show connection name OR bandwidth + type
-              const connectionName = connection.properties.name;
-
-              if (connectionName) {
-                const tspanName = document.createElementNS(
-                  "http://www.w3.org/2000/svg",
-                  "tspan"
-                );
-                tspanName.textContent = connectionName;
-                tspanName.setAttribute("x", midX);
-                tspanName.setAttribute("dy", "-10");
-                tspanName.setAttribute("font-weight", "600");
-                text.appendChild(tspanName);
-              }
-
-              const tspanNodes = document.createElementNS(
-                "http://www.w3.org/2000/svg",
-                "tspan"
-              );
-              tspanNodes.textContent = `${
-                sourceNode.properties.name || sourceNode.type
-              } → ${targetNode.properties.name || targetNode.type}`;
-              tspanNodes.setAttribute("x", midX);
-              tspanNodes.setAttribute("dy", connectionName ? "14" : "0");
-              tspanNodes.setAttribute("font-size", "11");
-              text.appendChild(tspanNodes);
-
-              const tspanSpeed = document.createElementNS(
-                "http://www.w3.org/2000/svg",
-                "tspan"
-              );
-              tspanSpeed.textContent = `${bandwidth} ${bandwidthUnit}`;
-              tspanSpeed.setAttribute("x", midX);
-              tspanSpeed.setAttribute("dy", "14");
-              tspanSpeed.setAttribute("font-size", "10");
-              tspanSpeed.setAttribute("opacity", "0.8");
-              text.appendChild(tspanSpeed);
-
-              // Approx bg size for full label
-              bgRect.setAttribute("x", midX - 60);
-              bgRect.setAttribute("y", midY - 30);
-              bgRect.setAttribute("width", 120);
-              bgRect.setAttribute("height", 60);
-            }
-
-            labelGroup.appendChild(bgRect);
-            labelGroup.appendChild(text);
-            svg.appendChild(labelGroup);
-          }
-        }
-      });
-
-      // Draw nodes
-      this.app.diagram.nodes.forEach((node) => {
-        const x = node.x - minX + padding;
-        const y = node.y - minY + padding;
-        const h =
-          node.expanded && node.category === "hardware" ? 350 : node.height;
-
-        // Find the group this node belongs to
-        let nodeColor = "#58a6ff";
-        this.app.diagram.groups.forEach((group) => {
-          if (group.nodeIds.includes(node.id)) {
-            nodeColor = group.color || "#58a6ff";
-          }
-        });
-
-        // Node background
-        const rect = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "rect"
-        );
-        rect.setAttribute("x", x);
-        rect.setAttribute("y", y);
-        rect.setAttribute("width", node.width);
-        rect.setAttribute("height", h);
-        rect.setAttribute("fill", "#161b22");
-        rect.setAttribute("stroke", "#30363d");
-        rect.setAttribute("stroke-width", "2");
-        rect.setAttribute("rx", "12");
-        svg.appendChild(rect);
-
-        // Add simple icon representation
-        const iconY = y + 35;
-        const iconX = x + 20;
-        const iconSize = 24;
-
-        // Draw a simple icon based on node type
-        const iconGroup = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "g"
-        );
-
-        if (node.type === "server" || node.category === "hardware") {
-          // Server icon - simple rectangle with lines
-          const serverRect = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "rect"
-          );
-          serverRect.setAttribute("x", iconX);
-          serverRect.setAttribute("y", iconY - iconSize / 2);
-          serverRect.setAttribute("width", iconSize);
-          serverRect.setAttribute("height", iconSize);
-          serverRect.setAttribute("fill", "none");
-          serverRect.setAttribute("stroke", nodeColor);
-          serverRect.setAttribute("stroke-width", "2");
-          serverRect.setAttribute("rx", "3");
-          iconGroup.appendChild(serverRect);
-
-          // Add horizontal lines
-          for (let i = 1; i <= 2; i++) {
-            const line = document.createElementNS(
-              "http://www.w3.org/2000/svg",
-              "line"
-            );
-            line.setAttribute("x1", iconX + 4);
-            line.setAttribute("y1", iconY - iconSize / 2 + (i * iconSize) / 3);
-            line.setAttribute("x2", iconX + iconSize - 4);
-            line.setAttribute("y2", iconY - iconSize / 2 + (i * iconSize) / 3);
-            line.setAttribute("stroke", nodeColor);
-            line.setAttribute("stroke-width", "2");
-            iconGroup.appendChild(line);
-          }
-        } else if (node.type === "router" || node.type === "switch") {
-          // Router/Switch icon - diamond shape
-          const points = `${iconX + iconSize / 2},${iconY - iconSize / 2} ${
-            iconX + iconSize
-          },${iconY} ${iconX + iconSize / 2},${
-            iconY + iconSize / 2
-          } ${iconX},${iconY}`;
-          const diamond = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "polygon"
-          );
-          diamond.setAttribute("points", points);
-          diamond.setAttribute("fill", "none");
-          diamond.setAttribute("stroke", nodeColor);
-          diamond.setAttribute("stroke-width", "2");
-          iconGroup.appendChild(diamond);
-        } else {
-          // Default icon - circle
-          const circle = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "circle"
-          );
-          circle.setAttribute("cx", iconX + iconSize / 2);
-          circle.setAttribute("cy", iconY);
-          circle.setAttribute("r", iconSize / 2);
-          circle.setAttribute("fill", "none");
-          circle.setAttribute("stroke", nodeColor);
-          circle.setAttribute("stroke-width", "2");
-          iconGroup.appendChild(circle);
-        }
-
-        svg.appendChild(iconGroup);
-
-        // Node title (adjusted position to make room for icon)
-        const title = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "text"
-        );
-        title.setAttribute("x", x + 55);
-        title.setAttribute("y", y + 40);
-        title.setAttribute("fill", nodeColor);
-        title.setAttribute("font-size", "16");
-        title.setAttribute("font-weight", "600");
-        title.setAttribute("font-family", "Inter, sans-serif");
-        title.setAttribute("text-anchor", "start");
-        title.textContent = node.properties.name || node.type;
-        svg.appendChild(title);
-
-        // Node type
-        const typeText = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "text"
-        );
-        typeText.setAttribute("x", x + 55);
-        typeText.setAttribute("y", y + 58);
-        typeText.setAttribute("fill", "#8b949e");
-        typeText.setAttribute("font-size", "11");
-        typeText.setAttribute("font-family", "Inter, sans-serif");
-        typeText.setAttribute("text-anchor", "start");
-        typeText.textContent = node.type;
-        svg.appendChild(typeText);
-
-        // If expanded hardware node, show details
-        if (node.expanded && node.category === "hardware") {
-          let yOffset = 80;
-
-          // CPU
-          const cpuLabel = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text"
-          );
-          cpuLabel.setAttribute("x", x + 20);
-          cpuLabel.setAttribute("y", y + yOffset);
-          cpuLabel.setAttribute("fill", "#8b949e");
-          cpuLabel.setAttribute("font-size", "11");
-          cpuLabel.setAttribute("font-family", "Inter, sans-serif");
-          cpuLabel.textContent = `CPU (${
-            node.properties.cpu ||
-            NODE_TYPES[node.type]?.properties?.cpu ||
-            "1.0"
-          } GHz)`;
-          svg.appendChild(cpuLabel);
-
-          const cpuValue = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text"
-          );
-          cpuValue.setAttribute("x", x + node.width - 20);
-          cpuValue.setAttribute("y", y + yOffset);
-          cpuValue.setAttribute("fill", "#c9d1d9");
-          cpuValue.setAttribute("font-size", "11");
-          cpuValue.setAttribute("font-family", "Inter, sans-serif");
-          cpuValue.setAttribute("text-anchor", "end");
-
-          const load = this.app.canvas.nodeRenderer.calculateResources(node);
-          cpuValue.textContent = `${load.cpu.percent.toFixed(0)}%`;
-          svg.appendChild(cpuValue);
-
-          yOffset += 30;
-
-          // RAM
-          const ramLabel = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text"
-          );
-          ramLabel.setAttribute("x", x + 20);
-          ramLabel.setAttribute("y", y + yOffset);
-          ramLabel.setAttribute("fill", "#8b949e");
-          ramLabel.setAttribute("font-size", "11");
-          ramLabel.setAttribute("font-family", "Inter, sans-serif");
-          ramLabel.textContent = `RAM (${
-            load.ram.max >= 1024
-              ? (load.ram.max / 1024).toFixed(0) + "GB"
-              : load.ram.max + "MB"
-          })`;
-          svg.appendChild(ramLabel);
-
-          const ramValue = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text"
-          );
-          ramValue.setAttribute("x", x + node.width - 20);
-          ramValue.setAttribute("y", y + yOffset);
-          ramValue.setAttribute("fill", "#c9d1d9");
-          ramValue.setAttribute("font-size", "11");
-          ramValue.setAttribute("font-family", "Inter, sans-serif");
-          ramValue.setAttribute("text-anchor", "end");
-          ramValue.textContent = `${load.ram.percent.toFixed(0)}%`;
-          svg.appendChild(ramValue);
-
-          yOffset += 30;
-
-          // Storage
-          const storageLabel = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text"
-          );
-          storageLabel.setAttribute("x", x + 20);
-          storageLabel.setAttribute("y", y + yOffset);
-          storageLabel.setAttribute("fill", "#8b949e");
-          storageLabel.setAttribute("font-size", "11");
-          storageLabel.setAttribute("font-family", "Inter, sans-serif");
-          storageLabel.textContent = `Storage (${load.storage.max}GB)`;
-          svg.appendChild(storageLabel);
-
-          const storageValue = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "text"
-          );
-          storageValue.setAttribute("x", x + node.width - 20);
-          storageValue.setAttribute("y", y + yOffset);
-          storageValue.setAttribute("fill", "#c9d1d9");
-          storageValue.setAttribute("font-size", "11");
-          storageValue.setAttribute("font-family", "Inter, sans-serif");
-          storageValue.setAttribute("text-anchor", "end");
-          storageValue.textContent = `${load.storage.percent.toFixed(0)}%`;
-          svg.appendChild(storageValue);
-        }
-
-        // Status indicator
-        const statusCircle = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "circle"
-        );
-        statusCircle.setAttribute("cx", x + node.width - 15);
-        statusCircle.setAttribute("cy", y + 15);
-        statusCircle.setAttribute("r", "5");
-        statusCircle.setAttribute(
-          "fill",
-          node.properties.status === "online" ? "#3fb950" : "#6e7681"
-        );
-        svg.appendChild(statusCircle);
-      });
-
-      // Convert SVG to PNG
-      const svgData = new XMLSerializer().serializeToString(svg);
-      const svgBlob = new Blob([svgData], {
-        type: "image/svg+xml;charset=utf-8",
-      });
-      const url = URL.createObjectURL(svgBlob);
-
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0);
-
+      try {
         canvas.toBlob((blob) => {
+          if (!blob) {
+            this.showToast("Export failed", "error");
+            return;
+          }
           const link = document.createElement("a");
           link.download = `homelab-diagram-${Date.now()}.png`;
-          link.href = URL.createObjectURL(blob);
+          const blobUrl = URL.createObjectURL(blob);
+          link.href = blobUrl;
           link.click();
-          URL.revokeObjectURL(url);
+          URL.revokeObjectURL(blobUrl);
           this.showToast("Diagram exported as PNG", "success");
         });
-      };
-      img.src = url;
+      } catch (error) {
+        console.error("Export failed:", error);
+        this.showToast("Export failed", "error");
+      }
     } catch (error) {
       console.error("Export failed:", error);
       this.showToast("Export failed", "error");
     }
+  }
+
+  prepareExportClone(root) {
+    const groups = root.querySelectorAll(".canvas-group");
+    groups.forEach((group) => {
+      const rawColor =
+        group.style.getPropertyValue("--group-color") ||
+        getComputedStyle(group).borderColor ||
+        "rgba(88, 166, 255, 0.8)";
+      const borderColor = this.toOpaqueColor(rawColor);
+      const fillColor = this.applyAlpha(rawColor, 0.08);
+
+      // Preserve readable label styling for export
+      const label = group.querySelector(".group-label");
+      if (label) {
+        label.style.color = borderColor;
+        label.style.background = "rgba(13, 17, 23, 0.7)";
+        label.style.border = `1px solid ${borderColor}`;
+        label.style.borderRadius = "6px";
+        label.style.padding = "2px 6px";
+      }
+
+      // Simplify for html2canvas
+      group.style.background = fillColor;
+      group.style.border = `2px solid ${borderColor}`;
+      group.style.outline = "none";
+      group.style.boxShadow = "none";
+      group.style.filter = "none";
+    });
+  }
+
+  toOpaqueColor(color) {
+    const parsed = this.parseColor(color);
+    if (!parsed) return color;
+    return `rgb(${parsed.r}, ${parsed.g}, ${parsed.b})`;
+  }
+
+  applyAlpha(color, alpha) {
+    const parsed = this.parseColor(color);
+    if (!parsed) return color;
+    return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${alpha})`;
+  }
+
+  parseColor(color) {
+    if (!color) return null;
+    const c = color.trim();
+    if (c.startsWith("#")) {
+      const hex = c.slice(1);
+      if (hex.length === 3) {
+        const r = parseInt(hex[0] + hex[0], 16);
+        const g = parseInt(hex[1] + hex[1], 16);
+        const b = parseInt(hex[2] + hex[2], 16);
+        return { r, g, b, a: 1 };
+      }
+      if (hex.length === 6 || hex.length === 8) {
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return { r, g, b, a: 1 };
+      }
+      return null;
+    }
+    const rgbMatch = c.match(
+      /^rgba?\s*\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/
+    );
+    if (rgbMatch) {
+      const r = Math.round(parseFloat(rgbMatch[1]));
+      const g = Math.round(parseFloat(rgbMatch[2]));
+      const b = Math.round(parseFloat(rgbMatch[3]));
+      const a = rgbMatch[4] !== undefined ? parseFloat(rgbMatch[4]) : 1;
+      return { r, g, b, a };
+    }
+    return null;
+  }
+
+  async collectExportStyles() {
+    let cssText = "";
+    Array.from(document.styleSheets).forEach((sheet) => {
+      try {
+        const rules = sheet.cssRules;
+        if (!rules) return;
+        Array.from(rules).forEach((rule) => {
+          cssText += `${rule.cssText}\n`;
+        });
+      } catch (e) {
+        // Ignore cross-origin or inaccessible stylesheets
+      }
+    });
+    return await this.inlineCssUrls(cssText);
+  }
+
+  async inlineCssUrls(cssText) {
+    const urlRegex = /url\(([^)]+)\)/g;
+    const urls = new Set();
+    let match;
+    while ((match = urlRegex.exec(cssText)) !== null) {
+      const raw = match[1].trim().replace(/^['"]|['"]$/g, "");
+      if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) continue;
+      urls.add(raw);
+    }
+
+    if (urls.size === 0) return cssText;
+
+    const cache = new Map();
+    const toDataUrl = async (url) => {
+      if (cache.has(url)) return cache.get(url);
+      try {
+        const absUrl = new URL(url, window.location.href).toString();
+        const res = await fetch(absUrl);
+        const blob = await res.blob();
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+        cache.set(url, dataUrl);
+        return dataUrl;
+      } catch (e) {
+        return url;
+      }
+    };
+
+    const replacements = await Promise.all(
+      Array.from(urls).map(async (url) => [url, await toDataUrl(url)])
+    );
+
+    let updated = cssText;
+    replacements.forEach(([url, dataUrl]) => {
+      if (url !== dataUrl) {
+        const safeUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        updated = updated.replace(
+          new RegExp(`url\\((['"]?)${safeUrl}\\1\\)`, "g"),
+          `url("${dataUrl}")`
+        );
+      }
+    });
+
+    return updated;
+  }
+
+  async inlineElementImages(root) {
+    const staging = document.createElement("div");
+    staging.style.position = "fixed";
+    staging.style.left = "-100000px";
+    staging.style.top = "-100000px";
+    staging.style.width = "1px";
+    staging.style.height = "1px";
+    staging.style.overflow = "hidden";
+    staging.appendChild(root);
+    document.body.appendChild(staging);
+
+    const elements = Array.from(root.querySelectorAll("*"));
+    for (const el of elements) {
+      const style = getComputedStyle(el);
+      await this.inlineStyleUrl(el, "backgroundImage", style.backgroundImage);
+      await this.inlineStyleUrl(el, "maskImage", style.maskImage);
+      await this.inlineStyleUrl(el, "webkitMaskImage", style.webkitMaskImage);
+
+      if (el instanceof SVGImageElement) {
+        const href = el.getAttribute("href") || el.getAttribute("xlink:href");
+        if (href && !href.startsWith("data:") && !href.startsWith("blob:")) {
+          const dataUrl = await this.fetchAsDataUrl(href);
+          if (dataUrl) {
+            el.setAttribute("href", dataUrl);
+            el.setAttribute("xlink:href", dataUrl);
+          }
+        }
+      }
+    }
+
+    staging.remove();
+  }
+
+  async inlineStyleUrl(el, prop, value) {
+    if (!value || value === "none" || !value.includes("url(")) return;
+    const urls = [];
+    const urlRegex = /url\(([^)]+)\)/g;
+    let match;
+    while ((match = urlRegex.exec(value)) !== null) {
+      const raw = match[1].trim().replace(/^['"]|['"]$/g, "");
+      if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) continue;
+      urls.push(raw);
+    }
+    if (urls.length === 0) return;
+
+    let updated = value;
+    for (const url of urls) {
+      const dataUrl = await this.fetchAsDataUrl(url);
+      if (dataUrl) {
+        const safeUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        updated = updated.replace(
+          new RegExp(`url\\((['"]?)${safeUrl}\\1\\)`, "g"),
+          `url("${dataUrl}")`
+        );
+      }
+    }
+
+    el.style[prop] = updated;
+  }
+
+  async fetchAsDataUrl(url) {
+    try {
+      const absUrl = new URL(url, window.location.href).toString();
+      const res = await fetch(absUrl);
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  getExportBounds() {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    const nodeElements = document.querySelectorAll(".canvas-node");
+    nodeElements.forEach((el) => {
+      const x = parseFloat(el.style.left) || 0;
+      const y = parseFloat(el.style.top) || 0;
+      const w = el.offsetWidth || 0;
+      const h = el.offsetHeight || 0;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w);
+      maxY = Math.max(maxY, y + h);
+    });
+
+    this.app.diagram.groups.forEach((group) => {
+      const bounds = this.app.canvas.getGroupBounds(group);
+      if (bounds) {
+        minX = Math.min(minX, bounds.x);
+        minY = Math.min(minY, bounds.y);
+        maxX = Math.max(maxX, bounds.x + bounds.width);
+        maxY = Math.max(maxY, bounds.y + bounds.height);
+      }
+    });
+
+    const textElements = document.querySelectorAll(".canvas-text");
+    textElements.forEach((el) => {
+      const x = parseFloat(el.style.left) || 0;
+      const y = parseFloat(el.style.top) || 0;
+      const w = el.offsetWidth || 0;
+      const h = el.offsetHeight || 0;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + w);
+      maxY = Math.max(maxY, y + h);
+    });
+
+    if (minX === Infinity) return null;
+
+    return { minX, minY, maxX, maxY };
   }
 
   populateGroupsSubmenu() {
