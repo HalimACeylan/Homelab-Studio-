@@ -902,7 +902,7 @@
 .openwrt-icon { background-image: url("/icons/os/simple-icons--openwrt.svg"); }
 
 /* Local LLM Icons */
-.llama-cpp-icon, .anythingllm-icon, .lm-studio-icon, .localai-icon, .text-gen-webui-icon, .gpt4all-icon, .vllm-icon, .huggingface-icon, .privategpt-icon, .jan-icon,
+.llama-icon, .llama-cpp-icon, .anythingllm-icon, .lm-studio-icon, .localai-icon, .text-gen-webui-icon, .gpt4all-icon, .vllm-icon, .huggingface-icon, .privategpt-icon, .jan-icon, .custom-model-icon,
 .llama-3-icon, .mistral-icon, .gemma-icon, .phi-3-icon, .qwen-icon, .yi-icon, .deepseek-icon, .command-r-icon, .tinyllama-icon, .falcon-icon, .stable-diffusion-icon, .generic-model-icon {
   width: 32px;
   height: 32px;
@@ -914,18 +914,20 @@
   justify-content: center;
 }
 
-/* Specific mapped icons (using generic AI or specific paths if available) */
-.llama-cpp-icon { background-image: url("/icons/applications/simple-icons--meta.svg"); } /* Proxy for Llama */
-.huggingface-icon { background-image: url("/icons/applications/simple-icons--huggingface.svg"); }
-.localai-icon { background-image: url("/icons/applications/carbon--ai.svg"); }
-.lm-studio-icon { background-image: url("/icons/applications/carbon--ai-status-complete.svg"); }
-.vllm-icon { background-image: url("/icons/applications/carbon--flash.svg"); } /* Fast */
+/* Specific mapped icons (local_llm assets) */
+.llama-icon,
+.llama-cpp-icon { background-image: url("/icons/local_llm/llamacpp.png"); }
+.huggingface-icon { background-image: url("/icons/local_llm/huggingface.svg"); }
+.localai-icon { background-image: url("/icons/local_llm/localai.png"); }
+.lm-studio-icon { background-image: url("/icons/local_llm/lmstudio.png"); }
+.vllm-icon { background-image: url("/icons/local_llm/vllm.svg"); }
 .gpt4all-icon { background-image: url("/icons/applications/carbon--bot.svg"); }
-.jan-icon { background-image: url("/icons/applications/carbon--chat-bot.svg"); }
-.privategpt-icon { background-image: url("/icons/applications/carbon--security.svg"); }
-.anythingllm-icon { background-image: url("/icons/applications/carbon--application.svg"); }
-.text-gen-webui-icon { background-image: url("/icons/applications/carbon--terminal.svg"); }
-
+.jan-icon { background-image: url("/icons/local_llm/jan.svg"); }
+.privategpt-icon { background-image: url("/icons/local_llm/privateGPT.png"); }
+.anythingllm-icon { background-image: url("/icons/local_llm/anythingllm.svg"); }
+.text-gen-webui-icon { background-image: url("/icons/local_llm/webui.png"); }
+.custom-model-icon { background-image: url("/icons/local_llm/custom_model.svg"); }
+.openwebui-icon { background-image: url("/icons/local_llm/openwebui.png"); }
 /* Models */
 .llama-3-icon, .tinyllama-icon { background-image: url("/icons/applications/simple-icons--meta.svg"); }
 .mistral-icon { background-image: url("/icons/applications/carbon--windy.svg"); } /* Mistral = Wind */

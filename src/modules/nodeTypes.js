@@ -419,14 +419,14 @@ export const LLM_TYPES = {
   // --- LLM Applications & Models ---
   "model-name": {
     name: "Model Name",
-    icon: "service",
+    icon: "custom-model",
     color: "#8b5cf6",
     description: "LLM Model Instance",
     category: "local_llm",
   },
   "open-webui": {
     name: "Open WebUI",
-    icon: "service",
+    icon: "openwebui",
     color: "#303030",
     description: "User-friendly WebUI for LLMs",
     category: "local_llm",
