@@ -256,62 +256,14 @@ export class PaletteController {
               category === "local_llm" ||
               !category
             ) {
-              const hardwareNode = dropTarget?.closest(
-                ".canvas-node.hardware-node"
-              );
-
-              if (hardwareNode && this.app) {
-                const nodeId = hardwareNode.dataset.nodeId;
-                const node = this.app.diagram.nodes.get(nodeId);
-
-                if (node && node.category === "hardware") {
-                  let success = false;
-
-                  // Applications and Local LLMs should be added as applications
-                  if (category === "application" || category === "local_llm") {
-                    success = this.app.diagram.addApplicationToNode(
-                      nodeId,
-                      type
-                    );
-                  }
-                  // OS types should be added as OS environments
-                  else if (
-                    category === "os" ||
-                    category === "v-os" ||
-                    !category
-                  ) {
-                    success = this.app.diagram.addOSEnvironment(
-                      nodeId,
-                      type,
-                      type
-                    );
-                  }
-
-                  if (success) {
-                    this.app.nodeRenderer.updateNodeElement(
-                      nodeId,
-                      this.app.diagram.nodes.get(nodeId)
-                    );
-                    this.app.ui.showToast(
-                      `Added ${type} to ${node.properties.name}`,
-                      "success"
-                    );
-                    console.log(
-                      `✅ Added ${category} to hardware node:`,
-                      nodeId
-                    );
-                  }
-                } else {
-                  this.app.ui.showToast(
-                    "Can only add OS/Apps to hardware nodes",
-                    "error"
-                  );
-                }
-              } else {
-                this.app.ui.showToast(
-                  "Drop OS/Apps onto a hardware node",
-                  "info"
-                );
+              if (dropTarget && dropTarget.closest("#canvas-container")) {
+                this.handleWorkloadDrop({
+                  type,
+                  category,
+                  dropTarget,
+                  clientX: touch.clientX,
+                  clientY: touch.clientY,
+                });
               }
             }
 
@@ -452,8 +404,12 @@ export class PaletteController {
     e.dataTransfer.dropEffect = "copy";
 
     // Highlight hardware nodes if dragging an application or OS
-    const isApplication = this.currentDragData?.category === "application";
-    const isOS = this.currentDragData?.category === "os";
+    const dragCategory = this.currentDragData?.category;
+    const isApplication =
+      dragCategory === "application" ||
+      dragCategory === "local_llm" ||
+      dragCategory === "v-os";
+    const isOS = dragCategory === "os";
 
     if (isApplication || isOS) {
       const nodeElement = e.target.closest(".canvas-node.hardware-node");
@@ -505,6 +461,260 @@ export class PaletteController {
     }
   }
 
+  isWorkloadCategory(category) {
+    return (
+      category === "application" ||
+      category === "local_llm" ||
+      category === "v-os" ||
+      category === "os"
+    );
+  }
+
+  getWorkloadCategory(category) {
+    if (category === "os") return "os";
+    if (
+      category === "application" ||
+      category === "local_llm" ||
+      category === "v-os"
+    ) {
+      return "application";
+    }
+    return null;
+  }
+
+  handleWorkloadDrop({ type, category, dropTarget, clientX, clientY }) {
+    const workloadCategory = this.getWorkloadCategory(category);
+    if (!workloadCategory) return false;
+
+    const nodeElement = dropTarget?.closest(".canvas-node.hardware-node");
+    if (nodeElement) {
+      const nodeId = nodeElement.dataset.nodeId;
+
+      if (workloadCategory === "application") {
+        const osEnvElement = dropTarget.closest(".os-env-group");
+        const osEnvId = osEnvElement ? osEnvElement.dataset.osEnvId : null;
+
+        const success = this.app.diagram.addApplicationToNode(nodeId, type, osEnvId);
+        if (success) {
+          const node = this.app.diagram.nodes.get(nodeId);
+          this.app.nodeRenderer.updateNodeElement(nodeId, node);
+          const targetName = osEnvElement
+            ? osEnvElement.querySelector(".os-env-name").textContent
+            : node.properties.name;
+          this.app.ui.showToast(`Added ${type} to ${targetName}`, "success");
+        }
+      } else if (workloadCategory === "os") {
+        const parentEnvElement = dropTarget.closest(".os-env-group");
+        let parentEnvId = null;
+
+        if (parentEnvElement) {
+          const potentialParentId = parentEnvElement.dataset.osEnvId;
+          const node = this.app.diagram.nodes.get(nodeId);
+          const targetEnv = this.app.diagram.findOSEnvironment(
+            node.osEnvironments,
+            potentialParentId
+          );
+
+          if (targetEnv && targetEnv.typeId) {
+            const osInfo =
+              OS_TYPES[targetEnv.typeId] || APPLICATION_TYPES[targetEnv.typeId];
+            if (osInfo && osInfo.category === "v-os") {
+              parentEnvId = potentialParentId;
+            }
+          }
+        }
+
+        const osNaming = {
+          proxmox_os: "Proxmox VE",
+          truenas_scale_os: "TrueNAS SCALE",
+          xcp_ng: "XCP-ng",
+          esxi: "VMware ESXi",
+        };
+        const osFriendlyName =
+          osNaming[type] || type.charAt(0).toUpperCase() + type.slice(1);
+
+        const success = this.app.diagram.addOSEnvironment(
+          nodeId,
+          osFriendlyName,
+          type,
+          parentEnvId
+        );
+
+        if (success) {
+          const node = this.app.diagram.nodes.get(nodeId);
+          this.app.nodeRenderer.updateNodeElement(nodeId, node);
+
+          if (type === "proxmox_os") {
+            const existingGroup = this.app.diagram.getNodeGroup(nodeId);
+            if (!existingGroup) {
+              const group = this.app.diagram.createGroup(
+                "Proxmox Cluster",
+                "#e97000",
+                [nodeId]
+              );
+              this.app.canvas.renderGroup(group);
+              this.app.ui.showToast(
+                `Added ${osFriendlyName} to ${node.properties.name} in Proxmox Cluster`,
+                "success"
+              );
+            } else {
+              const toastMsg = parentEnvId
+                ? `Created ${osFriendlyName} VM on ${
+                    parentEnvElement.querySelector(".os-env-name").textContent
+                  }`
+                : `Created ${osFriendlyName} environment on ${node.properties.name}`;
+              this.app.ui.showToast(toastMsg, "success");
+            }
+          } else {
+            const toastMsg = parentEnvId
+              ? `Created ${osFriendlyName} VM on ${
+                  parentEnvElement.querySelector(".os-env-name").textContent
+                }`
+              : `Created ${osFriendlyName} environment on ${node.properties.name}`;
+            this.app.ui.showToast(toastMsg, "success");
+          }
+        }
+      }
+
+      nodeElement.classList.remove("drop-potential");
+      return true;
+    }
+
+    const canvasPos = this.app.canvas.screenToCanvas(clientX, clientY);
+    const x = Math.round(canvasPos.x / 20) * 20;
+    const y = Math.round(canvasPos.y / 20) * 20;
+    const hardwareNode = this.app.addNode("server", x, y);
+
+    if (workloadCategory === "application") {
+      const appInfo = APPLICATION_TYPES[type] || LLM_TYPES[type];
+      const isVOS = appInfo && appInfo.category === "v-os";
+
+      if (isVOS) {
+        const ubuntuSuccess = this.app.diagram.addOSEnvironment(
+          hardwareNode.id,
+          "Ubuntu",
+          "ubuntu",
+          null
+        );
+
+        if (ubuntuSuccess) {
+          const node = this.app.diagram.nodes.get(hardwareNode.id);
+          const ubuntuEnv = node.osEnvironments?.find(
+            (env) => env.typeId === "ubuntu"
+          );
+
+          if (ubuntuEnv) {
+            const vosSuccess = this.app.diagram.addOSEnvironment(
+              hardwareNode.id,
+              appInfo.name,
+              type,
+              ubuntuEnv.id
+            );
+
+            if (vosSuccess) {
+              if (type === "ollama") {
+                const findOllama = (envs) => {
+                  for (const env of envs) {
+                    if (env.typeId === "ollama") return env;
+                    if (env.osEnvironments) {
+                      const found = findOllama(env.osEnvironments);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+                const refreshedNode = this.app.diagram.nodes.get(hardwareNode.id);
+                const ollamaEnvironment = findOllama(
+                  refreshedNode.osEnvironments || []
+                );
+
+                if (ollamaEnvironment) {
+                  this.app.diagram.addApplicationToNode(
+                    hardwareNode.id,
+                    "model-name",
+                    ollamaEnvironment.id
+                  );
+                }
+              }
+
+              const finalNode = this.app.diagram.nodes.get(hardwareNode.id);
+              this.app.nodeRenderer.updateNodeElement(hardwareNode.id, finalNode);
+              this.app.selectNode(hardwareNode.id);
+              this.app.ui.showToast(
+                `Created server with Ubuntu and ${appInfo.name}${
+                  type === "ollama" ? " + Model" : ""
+                }`,
+                "success"
+              );
+            }
+          }
+        }
+      } else {
+        const ubuntuSuccess = this.app.diagram.addOSEnvironment(
+          hardwareNode.id,
+          "Ubuntu",
+          "ubuntu",
+          null
+        );
+
+        if (ubuntuSuccess) {
+          const node = this.app.diagram.nodes.get(hardwareNode.id);
+          const ubuntuEnv = node.osEnvironments?.find(
+            (env) => env.typeId === "ubuntu"
+          );
+
+          if (ubuntuEnv) {
+            const appSuccess = this.app.diagram.addApplicationToNode(
+              hardwareNode.id,
+              type,
+              ubuntuEnv.id
+            );
+
+            if (appSuccess) {
+              this.app.nodeRenderer.updateNodeElement(hardwareNode.id, node);
+              this.app.selectNode(hardwareNode.id);
+              this.app.ui.showToast(
+                `Created server with Ubuntu and ${type}`,
+                "success"
+              );
+            }
+          }
+        }
+      }
+    } else if (workloadCategory === "os") {
+      const osFriendlyName = OS_TYPES[type]?.name || type;
+      const success = this.app.diagram.addOSEnvironment(
+        hardwareNode.id,
+        osFriendlyName,
+        type,
+        null
+      );
+
+      if (success) {
+        const node = this.app.diagram.nodes.get(hardwareNode.id);
+        this.app.nodeRenderer.updateNodeElement(hardwareNode.id, node);
+        this.app.selectNode(hardwareNode.id);
+
+        if (type === "proxmox_os") {
+          const group = this.app.diagram.createGroup(
+            "Proxmox Cluster",
+            "#e97000",
+            [hardwareNode.id]
+          );
+          this.app.canvas.renderGroup(group);
+          this.app.ui.showToast(
+            `Created server with ${osFriendlyName} in Proxmox Cluster`,
+            "success"
+          );
+        } else {
+          this.app.ui.showToast(`Created server with ${osFriendlyName}`, "success");
+        }
+      }
+    }
+
+    return true;
+  }
+
   handleDrop(e) {
     e.preventDefault();
 
@@ -526,284 +736,15 @@ export class PaletteController {
       return;
     }
 
-    // Check if dropping application or OS onto hardware node
-    // Treat local_llm and v-os categories as applications
-    if (
-      category === "application" ||
-      category === "local_llm" ||
-      category === "v-os" ||
-      category === "os"
-    ) {
-      const nodeElement = e.target.closest(".canvas-node.hardware-node");
-      if (nodeElement) {
-        const nodeId = nodeElement.dataset.nodeId;
-
-        if (category === "application") {
-          // Check if dropped specifically into an OS environment grid
-          const osEnvElement = e.target.closest(".os-env-group");
-          const osEnvId = osEnvElement ? osEnvElement.dataset.osEnvId : null;
-
-          const success = this.app.diagram.addApplicationToNode(
-            nodeId,
-            type,
-            osEnvId
-          );
-          if (success) {
-            const node = this.app.diagram.nodes.get(nodeId);
-            this.app.nodeRenderer.updateNodeElement(nodeId, node);
-            const targetName = osEnvElement
-              ? osEnvElement.querySelector(".os-env-name").textContent
-              : node.properties.name;
-            this.app.ui.showToast(`Added ${type} to ${targetName}`, "success");
-          }
-        } else if (category === "os") {
-          // Check if dropped specifically into another OS environment (Hypervisor nesting)
-          const parentEnvElement = e.target.closest(".os-env-group");
-          let parentEnvId = null;
-
-          if (parentEnvElement) {
-            const potentialParentId = parentEnvElement.dataset.osEnvId;
-            const node = this.app.diagram.nodes.get(nodeId);
-            const targetEnv = this.app.diagram.findOSEnvironment(
-              node.osEnvironments,
-              potentialParentId
-            );
-
-            // Check both OS_TYPES and APPLICATION_TYPES for v-os category
-            if (targetEnv && targetEnv.typeId) {
-              const osInfo =
-                OS_TYPES[targetEnv.typeId] ||
-                APPLICATION_TYPES[targetEnv.typeId];
-              if (osInfo && osInfo.category === "v-os") {
-                parentEnvId = potentialParentId;
-              }
-            }
-          }
-
-          const osNaming = {
-            proxmox_os: "Proxmox VE",
-            truenas_scale_os: "TrueNAS SCALE",
-            xcp_ng: "XCP-ng",
-            esxi: "VMware ESXi",
-          };
-          const osFriendlyName =
-            osNaming[type] || type.charAt(0).toUpperCase() + type.slice(1);
-
-          const success = this.app.diagram.addOSEnvironment(
-            nodeId,
-            osFriendlyName,
-            type, // Carry the type ID
-            parentEnvId
-          );
-          if (success) {
-            const node = this.app.diagram.nodes.get(nodeId);
-            this.app.nodeRenderer.updateNodeElement(nodeId, node);
-
-            // If Proxmox OS was added and node is not already in a group, create Proxmox Cluster
-            if (type === "proxmox_os") {
-              const existingGroup = this.app.diagram.getNodeGroup(nodeId);
-              if (!existingGroup) {
-                const group = this.app.diagram.createGroup(
-                  "Proxmox Cluster",
-                  "#e97000",
-                  [nodeId]
-                );
-                this.app.canvas.renderGroup(group);
-                this.app.ui.showToast(
-                  `Added ${osFriendlyName} to ${node.properties.name} in Proxmox Cluster`,
-                  "success"
-                );
-              } else {
-                // Already in a group, just show normal toast
-                const toastMsg = parentEnvId
-                  ? `Created ${osFriendlyName} VM on ${
-                      parentEnvElement.querySelector(".os-env-name").textContent
-                    }`
-                  : `Created ${osFriendlyName} environment on ${node.properties.name}`;
-                this.app.ui.showToast(toastMsg, "success");
-              }
-            } else {
-              // Not Proxmox, show normal toast
-              const toastMsg = parentEnvId
-                ? `Created ${osFriendlyName} VM on ${
-                    parentEnvElement.querySelector(".os-env-name").textContent
-                  }`
-                : `Created ${osFriendlyName} environment on ${node.properties.name}`;
-              this.app.ui.showToast(toastMsg, "success");
-            }
-          }
-        }
-
-        nodeElement.classList.remove("drop-potential");
-        return;
-      } else {
-        // No hardware node found - auto-create one with the app/OS
-        const canvasPos = this.app.canvas.screenToCanvas(e.clientX, e.clientY);
-        const x = Math.round(canvasPos.x / 20) * 20;
-        const y = Math.round(canvasPos.y / 20) * 20;
-
-        // Create a server hardware node
-        const hardwareNode = this.app.addNode("server", x, y);
-
-        if (
-          category === "application" ||
-          category === "local_llm" ||
-          category === "v-os"
-        ) {
-          // Check if this application is a v-os (like Docker or Ollama)
-          const appInfo = APPLICATION_TYPES[type] || LLM_TYPES[type];
-          const isVOS = appInfo && appInfo.category === "v-os";
-
-          if (isVOS) {
-            // Special handling for v-os apps (Docker, Ollama)
-            // Create Ubuntu OS environment first
-            const ubuntuSuccess = this.app.diagram.addOSEnvironment(
-              hardwareNode.id,
-              "Ubuntu",
-              "ubuntu",
-              null
-            );
-
-            if (ubuntuSuccess) {
-              const node = this.app.diagram.nodes.get(hardwareNode.id);
-              const ubuntuEnv = node.osEnvironments?.find(
-                (env) => env.typeId === "ubuntu"
-              );
-
-              if (ubuntuEnv) {
-                // Add the v-os environment (like Ollama) inside Ubuntu
-                const vosSuccess = this.app.diagram.addOSEnvironment(
-                  hardwareNode.id,
-                  appInfo.name,
-                  type,
-                  ubuntuEnv.id
-                );
-
-                if (vosSuccess) {
-                  // Special case for Ollama - add a model-name inside it
-                  if (type === "ollama") {
-                    const ollamaEnv = this.app.diagram.findOSEnvironment(
-                      node.osEnvironments,
-                      null
-                    );
-                    // Find the Ollama environment we just created
-                    const findOllama = (envs) => {
-                      for (const env of envs) {
-                        if (env.typeId === "ollama") return env;
-                        if (env.osEnvironments) {
-                          const found = findOllama(env.osEnvironments);
-                          if (found) return found;
-                        }
-                      }
-                      return null;
-                    };
-                    const refreshedNode = this.app.diagram.nodes.get(
-                      hardwareNode.id
-                    );
-                    const ollamaEnvironment = findOllama(
-                      refreshedNode.osEnvironments || []
-                    );
-
-                    if (ollamaEnvironment) {
-                      this.app.diagram.addApplicationToNode(
-                        hardwareNode.id,
-                        "model-name",
-                        ollamaEnvironment.id
-                      );
-                    }
-                  }
-
-                  const finalNode = this.app.diagram.nodes.get(hardwareNode.id);
-                  this.app.nodeRenderer.updateNodeElement(
-                    hardwareNode.id,
-                    finalNode
-                  );
-                  this.app.selectNode(hardwareNode.id);
-                  this.app.ui.showToast(
-                    `Created server with Ubuntu and ${appInfo.name}${
-                      type === "ollama" ? " + Model" : ""
-                    }`,
-                    "success"
-                  );
-                }
-              }
-            }
-          } else {
-            // Regular application - create Ubuntu and add app inside
-            const ubuntuSuccess = this.app.diagram.addOSEnvironment(
-              hardwareNode.id,
-              "Ubuntu",
-              "ubuntu",
-              null
-            );
-
-            if (ubuntuSuccess) {
-              // Find the Ubuntu environment we just created
-              const node = this.app.diagram.nodes.get(hardwareNode.id);
-              const ubuntuEnv = node.osEnvironments?.find(
-                (env) => env.typeId === "ubuntu"
-              );
-
-              if (ubuntuEnv) {
-                // Add the application to the Ubuntu environment
-                const appSuccess = this.app.diagram.addApplicationToNode(
-                  hardwareNode.id,
-                  type,
-                  ubuntuEnv.id
-                );
-
-                if (appSuccess) {
-                  this.app.nodeRenderer.updateNodeElement(
-                    hardwareNode.id,
-                    node
-                  );
-                  this.app.selectNode(hardwareNode.id);
-                  this.app.ui.showToast(
-                    `Created server with Ubuntu and ${type}`,
-                    "success"
-                  );
-                }
-              }
-            }
-          }
-        } else if (category === "os") {
-          // Add the OS environment directly to the hardware
-          const osFriendlyName = OS_TYPES[type]?.name || type;
-
-          const success = this.app.diagram.addOSEnvironment(
-            hardwareNode.id,
-            osFriendlyName,
-            type,
-            null
-          );
-          if (success) {
-            const node = this.app.diagram.nodes.get(hardwareNode.id);
-            this.app.nodeRenderer.updateNodeElement(hardwareNode.id, node);
-            this.app.selectNode(hardwareNode.id);
-
-            // If Proxmox, create a Proxmox Cluster group automatically
-            if (type === "proxmox_os") {
-              const group = this.app.diagram.createGroup(
-                "Proxmox Cluster",
-                "#e97000",
-                [hardwareNode.id]
-              );
-              this.app.canvas.renderGroup(group);
-              this.app.ui.showToast(
-                `Created server with ${osFriendlyName} in Proxmox Cluster`,
-                "success"
-              );
-            } else {
-              this.app.ui.showToast(
-                `Created server with ${osFriendlyName}`,
-                "success"
-              );
-            }
-          }
-        }
-
-        return;
-      }
+    if (this.isWorkloadCategory(category)) {
+      this.handleWorkloadDrop({
+        type,
+        category,
+        dropTarget: e.target,
+        clientX: e.clientX,
+        clientY: e.clientY,
+      });
+      return;
     }
 
     // Get canvas position for regular nodes

@@ -263,6 +263,7 @@ export class UIController {
         this.hideMobilePropertiesPopup();
       });
     }
+
   }
 
   setupCoordinatesDisplay() {
@@ -290,70 +291,361 @@ export class UIController {
   }
 
   showMobilePropertiesPopup(node) {
-    if (window.innerWidth >= 768) return; // Desktop only
+    if (!this.isMobileViewport()) return;
 
     const popup = document.getElementById("properties-popup");
     const content = document.getElementById("properties-popup-content");
+    const title = document.getElementById("mobile-properties-title");
 
     if (!popup || !content) return;
+    const currentNode = this.app.diagram.nodes.get(node.id);
+    if (!currentNode) return;
 
-    // Build property fields
+    const isHardware = currentNode.category === "hardware";
+    const resourceLoad = this.app.canvas.nodeRenderer.calculateResources(currentNode);
+    const cpuVal = parseFloat(currentNode.properties.cpu) || 1.0;
+    const ramVal = parseInt(currentNode.properties.ram, 10) || 4;
+    const storageVal = parseInt(currentNode.properties.storage, 10) || 128;
+
+    if (title) {
+      title.textContent = `${currentNode.properties.name || "Node"} Settings`;
+    }
+
     content.innerHTML = `
       <div class="property-group">
-        <label class="property-label">Name</label>
-        <input type="text" class="property-input" id="mobile-prop-name" value="${
-          node.properties.name || ""
-        }" />
+        <div class="property-group-title">General</div>
+        <div class="property-row">
+          <label class="property-label" for="mobile-prop-name">Name</label>
+          <input type="text" class="property-input" id="mobile-prop-name" value="${
+            currentNode.properties.name || ""
+          }" />
+        </div>
+        <div class="property-row">
+          <label class="property-label" for="mobile-prop-description">Description</label>
+          <textarea class="property-input" id="mobile-prop-description" rows="3" maxlength="2000">${
+            currentNode.properties.description || ""
+          }</textarea>
+        </div>
       </div>
+
+      ${
+        resourceLoad
+          ? `
       <div class="property-group">
-        <label class="property-label">Description</label>
-        <textarea class="property-input" id="mobile-prop-desc" rows="3">${
-          node.properties.description || ""
-        }</textarea>
+        <div class="property-group-title">Resource Load</div>
+        <div class="property-resource-group">
+          <div class="resource-row">
+            <div class="resource-info">
+              <div style="display:flex;align-items:center;">
+                <input type="number" step="0.1" min="0.1" max="10.0" class="spec-numeric-input" id="mobile-prop-cpu-num" value="${cpuVal.toFixed(
+              1
+            )}" />
+                <span class="spec-unit">GHz</span>
+              </div>
+              <span class="resource-value" id="mobile-cpu-percent">${resourceLoad.cpu.percent.toFixed(
+                0
+              )}%</span>
+            </div>
+            <div class="resource-bar-bg">
+              <div class="resource-bar-fill cpu" id="mobile-cpu-fill" style="width:${
+                resourceLoad.cpu.percent
+              }%"></div>
+            </div>
+            <div class="spec-input-container">
+              <div class="spec-header">
+                <label class="property-label">CPU Capacity</label>
+              </div>
+              <input type="range" step="0.1" min="0.1" max="10.0" class="spec-slider cpu" id="mobile-prop-cpu-range" value="${cpuVal.toFixed(
+                1
+              )}" />
+            </div>
+          </div>
+          <div class="resource-row">
+            <div class="resource-info">
+              <div style="display:flex;align-items:center;">
+                <input type="number" step="1" min="1" max="512" class="spec-numeric-input" id="mobile-prop-ram-num" value="${ramVal}" />
+                <span class="spec-unit">GB</span>
+              </div>
+              <span class="resource-value" id="mobile-ram-percent">${resourceLoad.ram.percent.toFixed(
+                0
+              )}%</span>
+            </div>
+            <div class="resource-bar-bg">
+              <div class="resource-bar-fill ram" id="mobile-ram-fill" style="width:${
+                resourceLoad.ram.percent
+              }%"></div>
+            </div>
+            <div class="spec-input-container">
+              <div class="spec-header">
+                <label class="property-label">RAM Capacity</label>
+              </div>
+              <input type="range" step="1" min="1" max="512" class="spec-slider ram" id="mobile-prop-ram-range" value="${ramVal}" />
+            </div>
+          </div>
+          <div class="resource-row">
+            <div class="resource-info">
+              <div style="display:flex;align-items:center;">
+                <input type="number" step="1" min="1" max="8192" class="spec-numeric-input" id="mobile-prop-storage-num" value="${storageVal}" />
+                <span class="spec-unit">GB</span>
+              </div>
+              <span class="resource-value" id="mobile-storage-percent">${resourceLoad.storage.percent.toFixed(
+                0
+              )}%</span>
+            </div>
+            <div class="resource-bar-bg">
+              <div class="resource-bar-fill storage" id="mobile-storage-fill" style="width:${
+                resourceLoad.storage.percent
+              }%"></div>
+            </div>
+            <div class="spec-input-container">
+              <div class="spec-header">
+                <label class="property-label">Storage Capacity</label>
+              </div>
+              <input type="range" step="1" min="1" max="8192" class="spec-slider storage" id="mobile-prop-storage-range" value="${storageVal}" />
+            </div>
+          </div>
+        </div>
       </div>
+      `
+          : ""
+      }
+
       <div class="property-group">
-        <label class="property-label">IP Address</label>
-        <input type="text" class="property-input" id="mobile-prop-ip" value="${
-          node.properties.ip || ""
-        }" />
+        <div class="property-group-title">Network</div>
+        <div class="property-row">
+          <label class="property-label" for="mobile-prop-ip">IP Address</label>
+          <input type="text" class="property-input" id="mobile-prop-ip" value="${
+            currentNode.properties.ip || ""
+          }" />
+        </div>
+        <div class="property-row">
+          <label class="property-label" for="mobile-prop-hostname">Hostname</label>
+          <input type="text" class="property-input" id="mobile-prop-hostname" value="${
+            currentNode.properties.hostname || ""
+          }" />
+        </div>
+        <div class="property-row">
+          <label class="property-label" for="mobile-prop-mac">MAC Address</label>
+          <input type="text" class="property-input" id="mobile-prop-mac" value="${
+            currentNode.properties.mac || ""
+          }" />
+        </div>
+      </div>
+
+      ${
+        isHardware
+          ? `
+      <div class="property-group">
+        <div class="property-group-title">Specifications</div>
+        <div class="property-row">
+          <label class="property-label" for="mobile-prop-os">Operating System</label>
+          <input type="text" class="property-input" id="mobile-prop-os" value="${
+            currentNode.properties.os || ""
+          }" />
+        </div>
+      </div>
+      `
+          : ""
+      }
+
+      <div class="property-group">
+        <div class="property-group-title">Position</div>
+        <div class="property-row" style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label class="property-label" for="mobile-prop-x">X</label>
+            <input type="number" class="property-input" id="mobile-prop-x" value="${Math.round(
+              currentNode.x
+            )}">
+          </div>
+          <div style="flex:1;">
+            <label class="property-label" for="mobile-prop-y">Y</label>
+            <input type="number" class="property-input" id="mobile-prop-y" value="${Math.round(
+              currentNode.y
+            )}">
+          </div>
+        </div>
+        <div class="property-row" style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label class="property-label" for="mobile-prop-width">Width</label>
+            <input type="number" class="property-input" id="mobile-prop-width" value="${currentNode.width}">
+          </div>
+          <div style="flex:1;">
+            <label class="property-label" for="mobile-prop-height">Height</label>
+            <input type="number" class="property-input" id="mobile-prop-height" value="${currentNode.height}">
+          </div>
+        </div>
+      </div>
+
+      <div class="property-group">
+        <div class="property-group-title">Actions</div>
+        <button class="btn btn-secondary" style="width:100%;margin-bottom:8px;" id="mobile-btn-duplicate-node">Duplicate Node</button>
+        <button class="btn btn-danger" style="width:100%;" id="mobile-btn-delete-node">Delete Node</button>
       </div>
     `;
 
-    // Attach live update listeners
+    const updateResourcePreview = () => {
+      const liveNode = this.app.diagram.nodes.get(currentNode.id);
+      if (!liveNode || !resourceLoad) return;
+      const load = this.app.canvas.nodeRenderer.calculateResources(liveNode);
+      if (!load) return;
+
+      const cpuPct = document.getElementById("mobile-cpu-percent");
+      const ramPct = document.getElementById("mobile-ram-percent");
+      const storagePct = document.getElementById("mobile-storage-percent");
+      const cpuFill = document.getElementById("mobile-cpu-fill");
+      const ramFill = document.getElementById("mobile-ram-fill");
+      const storageFill = document.getElementById("mobile-storage-fill");
+
+      if (cpuPct) cpuPct.textContent = `${load.cpu.percent.toFixed(0)}%`;
+      if (ramPct) ramPct.textContent = `${load.ram.percent.toFixed(0)}%`;
+      if (storagePct) storagePct.textContent = `${load.storage.percent.toFixed(0)}%`;
+      if (cpuFill) cpuFill.style.width = `${load.cpu.percent}%`;
+      if (ramFill) ramFill.style.width = `${load.ram.percent}%`;
+      if (storageFill) storageFill.style.width = `${load.storage.percent}%`;
+    };
+
+    const applyProperty = (key, value, refreshLoad = true) => {
+      const liveNode = this.app.diagram.nodes.get(currentNode.id);
+      if (!liveNode) return;
+      this.app.diagram.updateNode(currentNode.id, { properties: { [key]: value } });
+      this.app.nodeRenderer.updateNodeElement(currentNode.id, liveNode);
+      this.app.canvas.updateGroupsForNode(currentNode.id);
+      if (refreshLoad) updateResourcePreview();
+    };
+
     const nameInput = document.getElementById("mobile-prop-name");
     nameInput?.addEventListener("input", (e) => {
-      this.app.diagram.updateNode(node.id, {
-        properties: { ...node.properties, name: e.target.value },
-      });
-      this.app.nodeRenderer.updateNodeElement(
-        node.id,
-        this.app.diagram.nodes.get(node.id)
-      );
+      applyProperty("name", e.target.value);
     });
 
-    const descInput = document.getElementById("mobile-prop-desc");
+    const descInput = document.getElementById("mobile-prop-description");
     descInput?.addEventListener("input", (e) => {
-      this.app.diagram.updateNode(node.id, {
-        properties: { ...node.properties, description: e.target.value },
-      });
+      applyProperty("description", e.target.value, false);
     });
 
     const ipInput = document.getElementById("mobile-prop-ip");
     ipInput?.addEventListener("input", (e) => {
-      this.app.diagram.updateNode(node.id, {
-        properties: { ...node.properties, ip: e.target.value },
-      });
+      applyProperty("ip", e.target.value, false);
     });
 
-    // Show popup
+    const hostnameInput = document.getElementById("mobile-prop-hostname");
+    hostnameInput?.addEventListener("input", (e) => {
+      applyProperty("hostname", e.target.value, false);
+    });
+
+    const macInput = document.getElementById("mobile-prop-mac");
+    macInput?.addEventListener("input", (e) => {
+      applyProperty("mac", e.target.value, false);
+    });
+
+    const osInput = document.getElementById("mobile-prop-os");
+    osInput?.addEventListener("input", (e) => {
+      applyProperty("os", e.target.value, false);
+    });
+
+    const setupDualInput = (idPrefix, propName, maxVal, minVal, step) => {
+      const numInput = document.getElementById(`mobile-prop-${idPrefix}-num`);
+      const rangeInput = document.getElementById(`mobile-prop-${idPrefix}-range`);
+      if (!numInput || !rangeInput) return;
+
+      const update = (rawValue) => {
+        let numericVal = parseFloat(rawValue);
+        if (!Number.isFinite(numericVal)) return;
+        if (numericVal > maxVal) numericVal = maxVal;
+        if (numericVal < minVal) numericVal = minVal;
+        if (step === 1) numericVal = Math.round(numericVal);
+        numInput.value = numericVal;
+        rangeInput.value = numericVal;
+        if (idPrefix === "cpu") {
+          applyProperty(propName, `${numericVal.toFixed(1)} GHz`);
+        } else {
+          applyProperty(propName, `${numericVal} GB`);
+        }
+      };
+
+      numInput.addEventListener("input", (e) => update(e.target.value));
+      rangeInput.addEventListener("input", (e) => update(e.target.value));
+    };
+
+    setupDualInput("cpu", "cpu", 10.0, 0.1, 0.1);
+    setupDualInput("ram", "ram", 512, 1, 1);
+    setupDualInput("storage", "storage", 8192, 1, 1);
+
+    const xInput = document.getElementById("mobile-prop-x");
+    xInput?.addEventListener("change", (e) => {
+      const liveNode = this.app.diagram.nodes.get(currentNode.id);
+      if (!liveNode) return;
+      const x = parseInt(e.target.value, 10);
+      if (!Number.isFinite(x)) return;
+      this.app.updateNodePosition(currentNode.id, x, liveNode.y);
+    });
+
+    const yInput = document.getElementById("mobile-prop-y");
+    yInput?.addEventListener("change", (e) => {
+      const liveNode = this.app.diagram.nodes.get(currentNode.id);
+      if (!liveNode) return;
+      const y = parseInt(e.target.value, 10);
+      if (!Number.isFinite(y)) return;
+      this.app.updateNodePosition(currentNode.id, liveNode.x, y);
+    });
+
+    const widthInput = document.getElementById("mobile-prop-width");
+    widthInput?.addEventListener("change", (e) => {
+      const liveNode = this.app.diagram.nodes.get(currentNode.id);
+      if (!liveNode) return;
+      const width = parseInt(e.target.value, 10);
+      if (!Number.isFinite(width) || width < 80) return;
+      this.app.diagram.updateNode(currentNode.id, { width });
+      const element = document.querySelector(`[data-node-id="${currentNode.id}"]`);
+      if (element) element.style.width = `${width}px`;
+      this.app.canvas.updateGroupsForNode(currentNode.id);
+    });
+
+    const heightInput = document.getElementById("mobile-prop-height");
+    heightInput?.addEventListener("change", (e) => {
+      const liveNode = this.app.diagram.nodes.get(currentNode.id);
+      if (!liveNode) return;
+      const height = parseInt(e.target.value, 10);
+      if (!Number.isFinite(height) || height < 60) return;
+      this.app.diagram.updateNode(currentNode.id, { height });
+      const element = document.querySelector(`[data-node-id="${currentNode.id}"]`);
+      if (element) {
+        element.style.height = `${height}px`;
+        element.style.minHeight = `${height}px`;
+      }
+      this.app.canvas.updateGroupsForNode(currentNode.id);
+    });
+
+    document
+      .getElementById("mobile-btn-duplicate-node")
+      ?.addEventListener("click", () => {
+        this.app.duplicateNode(currentNode.id);
+      });
+
+    document
+      .getElementById("mobile-btn-delete-node")
+      ?.addEventListener("click", () => {
+        this.app.removeNode(currentNode.id);
+        this.hideMobilePropertiesPopup();
+        this.showToast("Node deleted", "success");
+    });
+
     popup.classList.add("visible");
   }
 
   hideMobilePropertiesPopup() {
     const popup = document.getElementById("properties-popup");
+    const title = document.getElementById("mobile-properties-title");
     if (popup) {
       popup.classList.remove("visible");
     }
+    if (title) {
+      title.textContent = "Node Settings";
+    }
+  }
+
+  isMobileViewport() {
+    return window.matchMedia("(max-width: 768px)").matches;
   }
 
   updateDiagramName(newName) {
@@ -1195,6 +1487,11 @@ export class UIController {
   }
   // Shortcuts Modal
   showShortcutsModal() {
+    if (this.isMobileViewport()) {
+      this.closeShortcutsModal();
+      return;
+    }
+
     // Check if user has opted out
     const dontShow = localStorage.getItem("homelab-shortcuts-optout");
     if (dontShow === "true") {

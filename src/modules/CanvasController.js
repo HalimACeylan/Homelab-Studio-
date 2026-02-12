@@ -39,6 +39,14 @@ export class CanvasController {
     this.draggedNode = null;
     this.dragOffset = { x: 0, y: 0 };
     this.lastMousePos = { x: 0, y: 0 };
+    this.touchStartTime = 0;
+    this.touchStartX = 0;
+    this.touchStartY = 0;
+    this.touchMoved = false;
+    this.touchMode = null;
+    this.isPinching = false;
+    this.pinchStartDistance = 0;
+    this.pinchLastCenter = null;
 
     // Resize state
     this.resizingNode = null;
@@ -173,8 +181,8 @@ export class CanvasController {
         this.app.removeNode(nodeId);
       } else if (action === "properties") {
         const node = this.app.diagram.nodes.get(nodeId);
-        if (node && this.app.uiController) {
-          this.app.uiController.showMobilePropertiesPopup(node);
+        if (node && this.app.ui) {
+          this.app.ui.showMobilePropertiesPopup(node);
         }
       }
       return;
@@ -371,183 +379,168 @@ export class CanvasController {
 
   // ===== Touch Gesture Handlers =====
   handleTouchStart(e) {
-    if (e.touches.length === 1) {
-      const touch = e.touches[0];
-      const target = e.target;
-
-      // Store touch start info
-      this.touchStartTime = Date.now();
-      this.touchStartX = touch.clientX;
-      this.touchStartY = touch.clientY;
-      this.touchMoved = false;
-      this.longPressActive = false;
-
-      // Check if touching a node or UI element
-      const nodeElement = target.closest(".canvas-node");
-      const portElement = target.closest(".node-port");
-      const textElement = target.closest(".canvas-text");
-
-      // If touching node/port/text, handle as direct interaction
-      if (nodeElement || portElement || textElement) {
-        // Clear long press timer if it exists
-        if (this.longPressTimer) {
-          clearTimeout(this.longPressTimer);
-        }
-
-        // Pass through to mouse handler
-        const fakeEvent = {
-          clientX: touch.clientX,
-          clientY: touch.clientY,
-          target: target,
-          button: 0,
-          preventDefault: () => e.preventDefault(),
-          stopPropagation: () => e.stopPropagation(),
-          shiftKey: false,
-          ctrlKey: false,
-          metaKey: false,
-          altKey: false,
-        };
-        this.handleMouseDown(fakeEvent);
-        return;
-      }
-
-      // Otherwise, set up long-press detection for panning
-      this.longPressTimer = setTimeout(() => {
-        if (!this.touchMoved && !this.isDragging && !this.isConnecting) {
-          this.longPressActive = true;
-
-          // Vibrate feedback if available
-          if (navigator.vibrate) {
-            navigator.vibrate(50);
-          }
-
-          // Enter pan mode
-          this.isPanning = true;
-          this.lastMousePos = { x: touch.clientX, y: touch.clientY };
-          this.container.style.cursor = "grabbing";
-        }
-      }, 500); // 500ms for long press
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      if (this.isDragging) this.stopDragging();
+      if (this.isSelecting) this.finishSelection();
+      if (this.isPanning) this.stopPanning();
+      const [touchA, touchB] = e.touches;
+      this.isPinching = true;
+      this.touchMode = "pinch";
+      this.pinchStartDistance = this.getTouchDistance(touchA, touchB);
+      this.pinchLastCenter = this.getTouchCenter(touchA, touchB);
+      return;
     }
+
+    if (e.touches.length !== 1) return;
+
+    const touch = e.touches[0];
+    const target = e.target;
+
+    this.touchStartTime = Date.now();
+    this.touchStartX = touch.clientX;
+    this.touchStartY = touch.clientY;
+    this.touchMoved = false;
+    this.touchMode = null;
+
+    const nodeElement = target.closest(".canvas-node");
+    const portElement = target.closest(".node-port");
+    const textElement = target.closest(".canvas-text");
+
+    if (nodeElement || portElement || textElement) {
+      const fakeEvent = {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        target,
+        button: 0,
+        preventDefault: () => e.preventDefault(),
+        stopPropagation: () => e.stopPropagation(),
+        shiftKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+      };
+      this.touchMode = "node";
+      this.handleMouseDown(fakeEvent);
+      return;
+    }
+
+    if (this.app.editMode === "marquee") {
+      this.touchMode = "marquee";
+      return;
+    }
+
+    // Drag mode on mobile should pan immediately without long-press.
+    this.touchMode = "pan";
+    this.isPanning = true;
+    this.lastMousePos = { x: touch.clientX, y: touch.clientY };
+    this.wrapper.classList.add("panning");
   }
 
   handleTouchMove(e) {
-    if (e.touches.length === 1) {
-      const touch = e.touches[0];
-      const dx = Math.abs(touch.clientX - this.touchStartX);
-      const dy = Math.abs(touch.clientY - this.touchStartY);
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const [touchA, touchB] = e.touches;
+      const distance = this.getTouchDistance(touchA, touchB);
 
-      // Detect if moved significantly
-      if (dx > 5 || dy > 5) {
-        this.touchMoved = true;
-      }
-
-      // If long press is active, perform panning
-      if (this.longPressActive && this.isPanning) {
-        e.preventDefault();
-        const fakeEvent = {
-          clientX: touch.clientX,
-          clientY: touch.clientY,
-        };
-        this.updatePanning(fakeEvent);
+      if (!this.isPinching) {
+        this.isPinching = true;
+        this.touchMode = "pinch";
+        this.pinchStartDistance = distance;
+        this.pinchLastCenter = this.getTouchCenter(touchA, touchB);
         return;
       }
 
-      // If already dragging/connecting/selecting, pass to mouse handler
-      if (this.isDragging || this.isConnecting || this.isSelecting) {
-        e.preventDefault();
-        const fakeEvent = {
-          clientX: touch.clientX,
-          clientY: touch.clientY,
-          target: e.target,
-        };
-        this.handleMouseMove(fakeEvent);
-        return;
+      const scaleFactor = distance / Math.max(this.pinchStartDistance, 1);
+      const newScale = clamp(
+        this.scale * scaleFactor,
+        this.minScale,
+        this.maxScale
+      );
+
+      const center = this.getTouchCenter(touchA, touchB);
+      this.zoomToPoint(newScale, center.x, center.y);
+      this.pinchStartDistance = distance;
+      this.pinchLastCenter = center;
+      return;
+    }
+
+    if (e.touches.length !== 1 || this.isPinching) return;
+
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - this.touchStartX);
+    const dy = Math.abs(touch.clientY - this.touchStartY);
+    this.touchMoved = dx > 4 || dy > 4;
+
+    if (this.isDragging || this.isConnecting || this.isResizing) {
+      e.preventDefault();
+      const fakeEvent = {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        target: e.target,
+      };
+      this.handleMouseMove(fakeEvent);
+      return;
+    }
+
+    if (this.touchMode === "pan" && this.isPanning) {
+      e.preventDefault();
+      this.updatePanning({ clientX: touch.clientX, clientY: touch.clientY });
+      return;
+    }
+
+    if (this.touchMode === "marquee") {
+      if (!this.isSelecting && this.touchMoved) {
+        this.startSelection({
+          clientX: this.touchStartX,
+          clientY: this.touchStartY,
+          shiftKey: false,
+          ctrlKey: false,
+          metaKey: false,
+        });
       }
 
-      // Default: Start marquee selection if moved and not long-pressing
-      if (this.touchMoved && !this.longPressActive && !this.isPanning) {
-        // Cancel long press timer
-        if (this.longPressTimer) {
-          clearTimeout(this.longPressTimer);
-        }
-
-        // Start marquee selection
-        if (!this.isSelecting) {
-          const fakeEvent = {
-            clientX: this.touchStartX,
-            clientY: this.touchStartY,
-            target: e.target,
-            button: 0,
-            shiftKey: false,
-            ctrlKey: false,
-            metaKey: false,
-            preventDefault: () => e.preventDefault(),
-          };
-
-          // Only start selection on background, not on nodes
-          const target = document.elementFromPoint(
-            this.touchStartX,
-            this.touchStartY
-          );
-          if (
-            !target.closest(".canvas-node") &&
-            !target.closest(".canvas-text")
-          ) {
-            this.startSelection(fakeEvent);
-          }
-        }
-
-        // Update selection
-        if (this.isSelecting) {
-          e.preventDefault();
-          const fakeEvent = {
-            clientX: touch.clientX,
-            clientY: touch.clientY,
-          };
-          this.updateSelection(fakeEvent);
-        }
+      if (this.isSelecting) {
+        e.preventDefault();
+        this.updateSelection({ clientX: touch.clientX, clientY: touch.clientY });
       }
     }
   }
 
   handleTouchEnd(e) {
-    // Clear long press timer
-    if (this.longPressTimer) {
-      clearTimeout(this.longPressTimer);
-      this.longPressTimer = null;
-    }
-
-    // If was panning, stop
-    if (this.longPressActive && this.isPanning) {
-      this.stopPanning();
-      this.longPressActive = false;
-      this.isPanning = false;
-      this.container.style.cursor = "";
+    if (this.isPinching) {
+      if (e.touches.length < 2) {
+        this.isPinching = false;
+        this.pinchStartDistance = 0;
+        this.pinchLastCenter = null;
+        this.touchMode = null;
+      }
       return;
     }
 
-    // Handle tap (no move, quick release)
+    if (this.touchMode === "pan" && this.isPanning) {
+      this.stopPanning();
+    }
+
+    if (this.isSelecting) {
+      this.finishSelection();
+    }
+
+    // Tap should not auto-open settings; settings open only via config icon.
     const touchDuration = Date.now() - this.touchStartTime;
     if (!this.touchMoved && touchDuration < 300) {
-      // This was a tap - check if on a node to show properties
       const changedTouch = e.changedTouches[0];
-      const target = document.elementFromPoint(
-        changedTouch.clientX,
-        changedTouch.clientY
-      );
+      const target = changedTouch
+        ? document.elementFromPoint(changedTouch.clientX, changedTouch.clientY)
+        : null;
       const nodeElement = target?.closest(".canvas-node");
 
-      if (nodeElement && this.app.uiController) {
+      if (nodeElement) {
         const nodeId = nodeElement.dataset.nodeId;
-        const node = this.app.diagram.nodes.get(nodeId);
-        if (node) {
-          // Show mobile properties popup
-          this.app.uiController.showMobilePropertiesPopup(node);
-        }
+        if (nodeId) this.app.selectNode(nodeId);
       }
     }
 
-    // Pass to standard mouse up handler
     const touch = e.changedTouches[0];
     const fakeEvent = {
       clientX: touch?.clientX || this.touchStartX,
@@ -558,9 +551,35 @@ export class CanvasController {
     };
     this.handleMouseUp(fakeEvent);
 
-    // Reset touch state
     this.touchMoved = false;
-    this.longPressActive = false;
+    this.touchMode = null;
+  }
+
+  getTouchDistance(touchA, touchB) {
+    const dx = touchA.clientX - touchB.clientX;
+    const dy = touchA.clientY - touchB.clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  getTouchCenter(touchA, touchB) {
+    return {
+      x: (touchA.clientX + touchB.clientX) / 2,
+      y: (touchA.clientY + touchB.clientY) / 2,
+    };
+  }
+
+  zoomToPoint(scale, screenX, screenY) {
+    const nextScale = clamp(scale, this.minScale, this.maxScale);
+    const rect = this.container.getBoundingClientRect();
+    const localX = screenX - rect.left;
+    const localY = screenY - rect.top;
+    const scaleRatio = nextScale / this.scale;
+
+    this.panX = localX - (localX - this.panX) * scaleRatio;
+    this.panY = localY - (localY - this.panY) * scaleRatio;
+    this.scale = nextScale;
+    this.applyTransform();
+    this.updateZoomDisplay();
   }
 
   handleDoubleClick(e) {
